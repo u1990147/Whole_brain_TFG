@@ -20,7 +20,7 @@ config.DISABLE_JIT = True
 from neuronumba.tools.filters import BandPassFilter
 
 import Pietras2025
-from compact_generic_bold_model import Compact_Simulator
+from LibBrain.compact_generic_bold_model import Compact_Simulator
 
 
 def filer_fMRI(fMRI):  # fMRI in (time, RoIs) format
@@ -84,7 +84,7 @@ def run():
     T_sim_seconds = (Tmax_vol * tr)
 
     compact_simulator = Compact_Simulator(
-        model = Pietras2025.ExactMeanField2025(),
+        model = Pietras2025.Pietras2025(),
         obs_var = 'R_e',
         weights = sc_norm,
         use_temporal_avg_monitor = False,
@@ -100,7 +100,7 @@ def run():
     )
 
     fig, axs = plt.subplots(1)
-    fig.suptitle(f'Result for model SanzPerl2023 (g={args.g})')
+    fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
     axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
     plt.show()
 
