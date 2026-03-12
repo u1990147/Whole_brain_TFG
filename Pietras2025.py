@@ -149,8 +149,8 @@ class Pietras2025(LinearCouplingModel):
                   doc="Excitatory QSFA adaptation strength β_e")
 
     # --- Inhibitory population parameters ---
-    tau_a_i = Attr(default=0.02, attributes=Model.Tag.REGIONAL,
-                   doc="Inhibitory adaptation time constant [s] (default: 20 ms)")
+    tau_a_i = Attr(default=0.10, attributes=Model.Tag.REGIONAL,
+                   doc="Inhibitory adaptation time constant [s] (default: 100 ms)")
 
     Delta_i = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
                    doc="Lorentzian half-width of inhibitory η distribution (heterogeneity)")
@@ -164,7 +164,7 @@ class Pietras2025(LinearCouplingModel):
     J_ii = Attr(default=2.0, attributes=Model.Tag.REGIONAL,
                 doc="Inhibitory self-coupling weight (subtracted in dV_i)")
 
-    beta_i = Attr(default=0.5, attributes=Model.Tag.REGIONAL,
+    beta_i = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
                   doc="Inhibitory QSFA adaptation strength β_i")
 
     # ------------------------------------------------------------------
@@ -185,7 +185,7 @@ class Pietras2025(LinearCouplingModel):
         state[2] = 0.0    # A_e
         state[3] = 0.0    # B_e
         # Inhibitory — start from low-activity state
-        state[4] = 0.05   # R_i
+        state[4] = 0.10   # R_i
         state[5] = -0.20  # V_i
         state[6] = 0.0    # A_i
         state[7] = 0.0    # B_i
@@ -337,16 +337,3 @@ class Pietras2025(LinearCouplingModel):
 
         return Pietras2025_dfun
 
-    # ------------------------------------------------------------------
-    # Noise covariance (override for correct dimensionality)
-    # ------------------------------------------------------------------
-
-    @overrides
-    def get_noise_matrix(self, sigma, N):
-        """
-        Noise covariance for the 8-dimensional state per ROI.
-        Only R and V variables are meaningfully noisy in the mean-field limit;
-        A and B evolve deterministically.  A diagonal matrix is returned for
-        simplicity; users may supply a structured matrix externally.
-        """
-        return (sigma ** 2) * np.eye(self.n_state_vars * N)
