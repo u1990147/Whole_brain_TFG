@@ -14,13 +14,13 @@ from scipy.signal import detrend
 from matplotlib import pyplot as plt
 
 # If need to debug numba code, uncomment this
-from numba import config
-config.DISABLE_JIT = True
+#from numba import config
+#config.DISABLE_JIT = True
 
 from neuronumba.tools.filters import BandPassFilter
 
-import Pietras2025
-from LibBrain.compact_generic_bold_model import Compact_Simulator
+import pietras2025_2
+from compact_generic_bold_model import Compact_Simulator
 
 
 def filer_fMRI(fMRI):  # fMRI in (time, RoIs) format
@@ -63,8 +63,9 @@ def run():
     # you should use the real one.
     # sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
     # np.npfill_diagonal(sc_norm, 0.0)
-    sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
-    sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
+    #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
+    #sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
+    sc_norm = np.array([[0.0]])
     # plt.matshow(sc_norm)
     # plt.show()
 
@@ -84,7 +85,7 @@ def run():
     T_sim_seconds = (Tmax_vol * tr)
 
     compact_simulator = Compact_Simulator(
-        model = Pietras2025.Pietras2025(),
+        model = pietras2025_2.Pietras2025(),
         obs_var = 'R_e',
         weights = sc_norm,
         use_temporal_avg_monitor = False,

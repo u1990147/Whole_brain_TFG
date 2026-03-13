@@ -27,7 +27,7 @@ class Compact_Simulator(CompactBoldSimulatorBase):
     tr = Attr(required=True, doc="Actual TR in milliseconds")
     dt = Attr(default=0.1, doc="Delta time for the simulation in milliseconds")
     model = Attr(default=None, doc="If need to custom configure the model. It must be a Montbrio model")
-    obs_var = Attr(default="r_e", doc="Observation variable")
+    obs_var = Attr(default=["r_e", "r_i"], doc="Observation variable")
 
     def _generate_bold(
         self,

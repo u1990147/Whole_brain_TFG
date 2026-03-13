@@ -108,9 +108,9 @@ class Pietras2025(LinearCouplingModel):
     # Variable name declarations
     # ------------------------------------------------------------------
 
-    _state_var_names      = ['r_e', 'v_e', 'a_e', 'b_e',
-                              'r_i', 'v_i', 'a_i', 'b_i']
-    _coupling_var_names   = ['r_e']                           # only r_e couples regions
+    _state_var_names      = ['R_e', 'V_e', 'A_e', 'B_e',
+                              'R_i', 'V_i', 'A_i', 'B_i']
+    _coupling_var_names   = ['R_e']                           # only R_e couples regions
     _observable_var_names = ['R_e_Hz', 'R_i_Hz']
 
     # ------------------------------------------------------------------
@@ -229,31 +229,31 @@ class Pietras2025(LinearCouplingModel):
             observed : (2, n_rois)   [R_e_Hz, R_i_Hz]
             """
             # --- Unpack state ---
-            r_e = state[0]
-            v_e = state[1]
-            a_e = state[2]
-            b_e = state[3]
-            r_i = state[4]
-            v_i = state[5]
-            a_i = state[6]
-            b_i = state[7]
+            R_e = state[0]   # dimensionless excitatory firing rate
+            V_e = state[1]   # excitatory mean voltage
+            A_e = state[2]   # excitatory adaptation (real part of α)
+            B_e = state[3]   # excitatory adaptation (imag part of α)
+            R_i = state[4]   # dimensionless inhibitory firing rate
+            V_i = state[5]   # inhibitory mean voltage
+            A_i = state[6]   # inhibitory adaptation (real part)
+            B_i = state[7]   # inhibitory adaptation (imag part)
 
             # --- Unpack parameters ---
-            tau_m_s   = m[P.tau_m_s]
-            tau_a_e_s = m[P.tau_a_e_s]
-            tau_a_i_s = m[P.tau_a_i_s]
+            tau_m_s   = m[np.intp(P.tau_m_s)]
+            tau_a_e_s = m[np.intp(P.tau_a_e_s)]
+            tau_a_i_s = m[np.intp(P.tau_a_i_s)]
 
-            Delta_e = m[P.Delta_e]
-            eta_e   = m[P.eta_e]
-            J_ee    = m[P.J_ee]
-            J_ei    = m[P.J_ei]
-            beta_e  = m[P.beta_e]
+            Delta_e = m[np.intp(P.Delta_e)]
+            eta_e   = m[np.intp(P.eta_e)]
+            J_ee    = m[np.intp(P.J_ee)]
+            J_ei    = m[np.intp(P.J_ei)]
+            beta_e  = m[np.intp(P.beta_e)]
 
-            Delta_i = m[P.Delta_i]
-            eta_i   = m[P.eta_i]
-            J_ie    = m[P.J_ie]
-            J_ii    = m[P.J_ii]
-            beta_i  = m[P.beta_i]
+            Delta_i = m[np.intp(P.Delta_i)]
+            eta_i   = m[np.intp(P.eta_i)]
+            J_ie    = m[np.intp(P.J_ie)]
+            J_ii    = m[np.intp(P.J_ii)]
+            beta_i  = m[np.intp(P.beta_i)]
 
             # Dimensionless adaptation time ratios (tau = tau_a / tau_m)
             # e.g. tau_e = 0.1 / 0.01 = 10.0 for the Fig. 5 parameters
@@ -268,25 +268,25 @@ class Pietras2025(LinearCouplingModel):
             # Effective drives — replace eta_bar in the single-population eqs.
             # Exactly mirrors simulate_fre_4d:  ebar + p.J * rr
             # -------------------------------------------------------
-            I_eff_e = eta_e + J_ee * r_e - J_ei * r_i + c_e
-            I_eff_i = eta_i + J_ie * r_e - J_ii * r_i
+            I_eff_e = eta_e + J_ee * R_e - J_ei * R_i + c_e
+            I_eff_i = eta_i + J_ie * R_e - J_ii * R_i
 
             # -------------------------------------------------------
             # Excitatory 4D mean-field
             # Direct translation of simulate_fre_4d (drr, dvv, daa, dbb)
             # -------------------------------------------------------
-            dr_e = (Delta_e + b_e) / pi + 2.0 * r_e * v_e
-            dv_e = v_e * v_e - (pi * r_e) ** 2.0 + I_eff_e - a_e
-            da_e = (beta_e * I_eff_e - (1.0 + beta_e) * a_e) / tau_e
-            db_e = (-(1.0 + beta_e) * b_e - beta_e * Delta_e) / tau_e
+            dr_e = (Delta_e + B_e) / pi + 2.0 * R_e * V_e
+            dv_e = V_e * V_e - (pi * R_e) ** 2.0 + I_eff_e - A_e
+            da_e = (beta_e * I_eff_e - (1.0 + beta_e) * A_e) / tau_e
+            db_e = (-(1.0 + beta_e) * B_e - beta_e * Delta_e) / tau_e
 
             # -------------------------------------------------------
             # Inhibitory 4D mean-field (no long-range coupling)
             # -------------------------------------------------------
-            dr_i = (Delta_i + b_i) / pi + 2.0 * r_i * v_i
-            dv_i = v_i * v_i - (pi * r_i) ** 2.0 + I_eff_i - a_i
-            da_i = (beta_i * I_eff_i - (1.0 + beta_i) * a_i) / tau_i
-            db_i = (-(1.0 + beta_i) * b_i - beta_i * Delta_i) / tau_i
+            dr_i = (Delta_i + B_i) / pi + 2.0 * R_i * V_i
+            dv_i = V_i * V_i - (pi * R_i) ** 2.0 + I_eff_i - A_i
+            da_i = (beta_i * I_eff_i - (1.0 + beta_i) * A_i) / tau_i
+            db_i = (-(1.0 + beta_i) * B_i - beta_i * Delta_i) / tau_i
 
             # -------------------------------------------------------
             # Pack outputs
@@ -295,8 +295,8 @@ class Pietras2025(LinearCouplingModel):
                                 dr_i, dv_i, da_i, db_i))
 
             # Physical firing rates in Hz = r / tau_m_s
-            R_e_Hz = r_e / tau_m_s
-            R_i_Hz = r_i / tau_m_s
+            R_e_Hz = R_e / tau_m_s
+            R_i_Hz = R_i / tau_m_s
             observed = np.stack((R_e_Hz, R_i_Hz))
 
             return d_state, observed

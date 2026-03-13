@@ -261,20 +261,20 @@ class Pietras2025(LinearCouplingModel):
             B_i = state[7]   # inhibitory adaptation (imag part)
 
             # --- Unpack parameters ---
-            tau_m   = m[P.tau_m]
-            tau_a_e = m[P.tau_a_e]
-            Delta_e = m[P.Delta_e]
-            eta_e   = m[P.eta_e]
-            J_ee    = m[P.J_ee]
-            J_ei    = m[P.J_ei]
-            beta_e  = m[P.beta_e]
+            tau_m   = m[np.intp(P.tau_m)]
+            tau_a_e = m[np.intp(P.tau_a_e)]
+            Delta_e = m[np.intp(P.Delta_e)]
+            eta_e   = m[np.intp(P.eta_e)]
+            J_ee    = m[np.intp(P.J_ee)]
+            J_ei    = m[np.intp(P.J_ei)]
+            beta_e  = m[np.intp(P.beta_e)]
 
-            tau_a_i = m[P.tau_a_i]
-            Delta_i = m[P.Delta_i]
-            eta_i   = m[P.eta_i]
-            J_ie    = m[P.J_ie]
-            J_ii    = m[P.J_ii]
-            beta_i  = m[P.beta_i]
+            tau_a_i = m[np.intp(P.tau_a_i)]
+            Delta_i = m[np.intp(P.Delta_i)]
+            eta_i   = m[np.intp(P.eta_i)]
+            J_ie    = m[np.intp(P.J_ie)]
+            J_ii    = m[np.intp(P.J_ii)]
+            beta_i  = m[np.intp(P.beta_i)]
 
             # --- Long-range excitatory coupling input ---
             # coupling[0] = g * (W^T @ R_e), shape (n_rois,)
