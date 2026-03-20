@@ -36,7 +36,7 @@
 #     (i.e. as an additive drive), consistent with Eq. (6) of the paper and
 #     the dimensionless treatment of the reference code.
 #
-#   - Only r_e drives inter-region coupling (analogous to S_e in Deco2014).
+#   - Only r_e drives inter-region coupling.
 #   - Inhibitory neurons receive only local excitatory drive (no long-range).
 #
 # State variables (8 per ROI):
@@ -72,7 +72,7 @@ class Pietras2025(LinearCouplingModel):
 
     All internal variables are in dimensionless time t' = t / tau_m, matching
     exactly the reference simulation (simulate_fre_4d in fig5_network_vs_meanfield.py).
-    The library integrator must therefore use dt' = dt_s / tau_m_s as its step.
+    The library integrator must therefore use dt' = dt_s / tau_m as its step.
 
     The four dimensionless mean-field variables per population are:
         r  — dimensionless firing rate  (R_Hz = r / tau_m_s)
@@ -82,9 +82,9 @@ class Pietras2025(LinearCouplingModel):
 
     Parameters
     ----------
-    tau_m_s   : membrane time constant [s]           (default: 10 ms = 0.01 s)
-    tau_a_e_s : excitatory adaptation time const [s]  (default: 100 ms = 0.1 s)
-    tau_a_i_s : inhibitory adaptation time const [s]  (default:  20 ms = 0.02 s)
+    tau_m     : membrane time constant [ms]           (default: 10 ms = 0.01 s)
+    tau_a_e   : excitatory adaptation time constant [ms]  (default: 100 ms = 0.1 s)
+    tau_a_i   : inhibitory adaptation time constant [ms]  (default:  20 ms = 0.02 s)
     Delta_e   : Lorentzian half-width Delta_e (excitatory heterogeneity)
     Delta_i   : Lorentzian half-width Delta_i (inhibitory heterogeneity)
     eta_e     : mean excitatory external drive eta_e
@@ -117,15 +117,15 @@ class Pietras2025(LinearCouplingModel):
     # Parameters — REGIONAL (one scalar per ROI, packed into self.m)
     # ------------------------------------------------------------------
 
-    # Timescales (in seconds)
-    tau_m_s = Attr(default=0.01, attributes=Model.Tag.REGIONAL,
-                   doc="Membrane time constant [s] (default 10 ms)")
+    # Timescales (in milliseconds)
+    tau_m = Attr(default=0.01, attributes=Model.Tag.REGIONAL,
+                   doc="Membrane time constant [ms] (default 0.01 ms)")
 
-    tau_a_e_s = Attr(default=0.10, attributes=Model.Tag.REGIONAL,
-                     doc="Excitatory adaptation time constant [s] (default 100 ms)")
+    tau_a_e = Attr(default=100, attributes=Model.Tag.REGIONAL,
+                     doc="Excitatory adaptation time constant [ms] (default 100 ms)")
 
-    tau_a_i_s = Attr(default=0.02, attributes=Model.Tag.REGIONAL,
-                     doc="Inhibitory adaptation time constant [s] (default 20 ms)")
+    tau_a_i = Attr(default=100, attributes=Model.Tag.REGIONAL,
+                     doc="Inhibitory adaptation time constant [ms] (default 100 ms)")
 
     # Excitatory population
     Delta_e = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
@@ -156,7 +156,7 @@ class Pietras2025(LinearCouplingModel):
     J_ii = Attr(default=2.0, attributes=Model.Tag.REGIONAL,
                 doc="Inhibitory self-coupling weight (subtracted in drive)")
 
-    beta_i = Attr(default=0.5, attributes=Model.Tag.REGIONAL,
+    beta_i = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
                   doc="QSFA adaptation strength for inhibitory neurons beta_i")
 
     # ------------------------------------------------------------------
@@ -190,7 +190,7 @@ class Pietras2025(LinearCouplingModel):
 
         Equations (verified line-by-line against simulate_fre_4d):
 
-        For excitatory population, with tau_e = tau_a_e_s / tau_m_s:
+        For excitatory population, with tau_e = tau_a_e / tau_m:
 
             dr_e/dt' = (Delta_e + b_e) / pi  +  2 * r_e * v_e
             dv_e/dt' = v_e^2  -  (pi * r_e)^2  +  I_eff_e  -  a_e
@@ -199,7 +199,7 @@ class Pietras2025(LinearCouplingModel):
 
             I_eff_e  =  eta_e  +  J_ee * r_e  -  J_ei * r_i  +  c_e
 
-        Symmetrically for inhibitory (tau_i = tau_a_i_s / tau_m_s):
+        Symmetrically for inhibitory (tau_i = tau_a_i / tau_m):
 
             dr_i/dt' = (Delta_i + b_i) / pi  +  2 * r_i * v_i
             dv_i/dt' = v_i^2  -  (pi * r_i)^2  +  I_eff_i  -  a_i
@@ -239,9 +239,9 @@ class Pietras2025(LinearCouplingModel):
             B_i = state[7]   # inhibitory adaptation (imag part)
 
             # --- Unpack parameters ---
-            tau_m_s   = m[np.intp(P.tau_m_s)]
-            tau_a_e_s = m[np.intp(P.tau_a_e_s)]
-            tau_a_i_s = m[np.intp(P.tau_a_i_s)]
+            tau_m   = m[np.intp(P.tau_m)]
+            tau_a_e = m[np.intp(P.tau_a_e)]
+            tau_a_i = m[np.intp(P.tau_a_i)]
 
             Delta_e = m[np.intp(P.Delta_e)]
             eta_e   = m[np.intp(P.eta_e)]
@@ -257,8 +257,8 @@ class Pietras2025(LinearCouplingModel):
 
             # Dimensionless adaptation time ratios (tau = tau_a / tau_m)
             # e.g. tau_e = 0.1 / 0.01 = 10.0 for the Fig. 5 parameters
-            tau_e = tau_a_e_s / tau_m_s
-            tau_i = tau_a_i_s / tau_m_s
+            tau_e = tau_a_e / tau_m
+            tau_i = tau_a_i / tau_m
 
             # --- Long-range excitatory input ---
             # c_e has same units as r_e (dimensionless), enters drive additively
@@ -295,8 +295,8 @@ class Pietras2025(LinearCouplingModel):
                                 dr_i, dv_i, da_i, db_i))
 
             # Physical firing rates in Hz = r / tau_m_s
-            R_e_Hz = R_e / tau_m_s
-            R_i_Hz = R_i / tau_m_s
+            R_e_Hz = R_e / tau_m*1000 # convert to Hz for observables
+            R_i_Hz = R_i / tau_m*1000 # convert to Hz for observables
             observed = np.stack((R_e_Hz, R_i_Hz))
 
             return d_state, observed

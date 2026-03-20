@@ -110,6 +110,7 @@ def run():
     print("Simulated BOLD signal generated")
 
     fig, axs = plt.subplots(1)
+    axs.set_ylabel(r"$R(t)$ [Hz]")
     fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
     axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
     plt.show()

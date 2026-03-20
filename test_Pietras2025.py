@@ -82,7 +82,7 @@ def run():
 
     tr = 2.0
     dt = 0.01 # milliseconds (1e-5 seconds)
-    Tmax_vol = 295
+    Tmax_vol = 500
     T_sim_seconds = (Tmax_vol * tr)
     T_warm_seconds = 20
 
