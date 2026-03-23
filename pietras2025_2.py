@@ -118,7 +118,7 @@ class Pietras2025(LinearCouplingModel):
     # ------------------------------------------------------------------
 
     # Timescales (in milliseconds)
-    tau_m = Attr(default=0.01, attributes=Model.Tag.REGIONAL,
+    tau_m = Attr(default=10, attributes=Model.Tag.REGIONAL,
                    doc="Membrane time constant [ms] (default 0.01 ms)")
 
     tau_a_e = Attr(default=100, attributes=Model.Tag.REGIONAL,
