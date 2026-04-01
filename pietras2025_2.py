@@ -150,10 +150,10 @@ class Pietras2025(LinearCouplingModel):
     eta_i = Attr(default=-1.74, attributes=Model.Tag.REGIONAL,
                  doc="Mean inhibitory external drive eta_i")
 
-    J_ie = Attr(default=10.0, attributes=Model.Tag.REGIONAL,
+    J_ie = Attr(default=5.0, attributes=Model.Tag.REGIONAL,
                 doc="Excitatory-to-inhibitory coupling weight")
 
-    J_ii = Attr(default=2.0, attributes=Model.Tag.REGIONAL,
+    J_ii = Attr(default=5.0, attributes=Model.Tag.REGIONAL,
                 doc="Inhibitory self-coupling weight (subtracted in drive)")
 
     beta_i = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
@@ -270,7 +270,8 @@ class Pietras2025(LinearCouplingModel):
             # -------------------------------------------------------
             I_eff_e = eta_e + J_ee * R_e - J_ei * R_i + c_e
             I_eff_i = eta_i + J_ie * R_e - J_ii * R_i
-
+            # I_eff_e = J_ee * tau_e * R_e - J_ei * tau_e * R_i + J_ee * tau_e * c_e
+            # I_eff_i = tau_i * J_ie * R_e - J_ii * tau_i * R_i
             # -------------------------------------------------------
             # Excitatory 4D mean-field
             # Direct translation of simulate_fre_4d (drr, dvv, daa, dbb)

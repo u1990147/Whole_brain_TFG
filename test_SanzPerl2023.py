@@ -12,18 +12,15 @@ import numpy as np
 import scipy.io as sio
 from scipy.signal import detrend
 from matplotlib import pyplot as plt
-from HCP_dbs80 import HCP
-from WorkBrainFolder import *
 
 # If need to debug numba code, uncomment this
-#from numba import config
-#config.DISABLE_JIT = True
+from numba import config
+config.DISABLE_JIT = True
 
 from neuronumba.tools.filters import BandPassFilter
 
-import pietras2025_2
+import SanzPerl2023
 from compact_generic_bold_model import Compact_Simulator
-from compact_bold_simulator import CompactMontbrioSimulator
 
 
 def filer_fMRI(fMRI):  # fMRI in (time, RoIs) format
@@ -64,13 +61,11 @@ def run():
 
     # We generate a Mock-up structural connectivity (SC) matrix for the purpose of the example. In a real-world scenario
     # you should use the real one.
-    # sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
-    # np.fill_diagonal(sc_norm, 0.0)
-    hcp = HCP()
-    sc_norm = hcp.get_AvgSC_ctrl()
+    n_rois = 5
+    sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
+    np.fill_diagonal(sc_norm, 0.0)
     #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
-    sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
-    #sc_norm = np.array([[0.0]])
+    #sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
     # plt.matshow(sc_norm)
     # plt.show()
 
@@ -85,51 +80,32 @@ def run():
     # FC_emp = np.corrcoef(ts_emp_filt)
 
     tr = 2.0
-    dt = 0.01 # milliseconds (1e-5 seconds)
+    dt = 0.01  # milliseconds (1e-5 seconds)
     Tmax_vol = 295
     T_sim_seconds = (Tmax_vol * tr)
     T_warm_seconds = 20
 
-
     compact_simulator = Compact_Simulator(
-        model = pietras2025_2.Pietras2025(),
-        obs_var = 'R_e_Hz',
+        model = SanzPerl2023.EMFM(),
+        obs_var = 'r_e',
         weights = sc_norm,
         use_temporal_avg_monitor = False,
         g = 5.30,
         sigma = 1e-03,
         tr = tr*1000,  # milliseconds
-        dt = dt,   # milliseconds
-        use_bold = False # False for maxRate
+        dt = dt   # milliseconds
     )
-
 
     simulated_bold = compact_simulator.generate_bold(
         warmup_time = T_warm_seconds*1000, # This samples will be discarded
-        simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+        simulated_time = T_sim_seconds*1000  # Number of useful samples to generate, this will be the size of the generated bold
     )
 
-    if compact_simulator.use_bold:
-        fig, axs = plt.subplots(1)
-        fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
-        axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
-        plt.show()
+    fig, axs = plt.subplots(1)
+    fig.suptitle(f'Result for model SanzPerl2023 (g={args.g})')
+    axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
+    plt.show()
 
-        variances = np.var(simulated_bold, axis=0)
-        selected_rois = np.argsort(variances)[-5:]
-        shape = np.arange(simulated_bold.shape[0])
-
-        fig2, axs2 = plt.subplots(1, figsize=(10, 5))
-        fig2.suptitle(f'Most variable ROI signals (g={args.g})')
-        axs2.plot(shape, simulated_bold[:, selected_rois])
-        plt.show()
-
-    if not compact_simulator.use_bold:
-        maxRate= np.max(np.mean(simulated_bold,axis=0))
-        fig, axs = plt.subplots(1)
-        fig.suptitle(f'Maximum mean rate from model Pietras2025 (g={args.g})')
-        axs.plot(maxRate)
-        plt.show()
 
 if __name__ == '__main__':
     run()

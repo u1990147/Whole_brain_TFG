@@ -287,7 +287,9 @@ class Pietras2025(LinearCouplingModel):
             # Effective drive entering both V̇_e and A_e equation
             #   I_eff_e = η̄_e + J_ee * τm * R_e  - J_ei * τm * R_i  + long-range
             # Note: τm * R is dimensionless×s → same unit as η̄
-            I_eff_e = eta_e + J_ee * tau_m * R_e - J_ei * tau_m * R_i + c_e
+            #I_eff_e = eta_e + J_ee * tau_m * R_e - J_ei * tau_m * R_i + c_e
+            I_eff_e = J_ee * tau_m * R_e - J_ei * tau_m * R_i + J_ee * tau_m * c_e
+        
 
             # τm dR_e/dt = (Δ_e + B_e) / (π τm) + 2 R_e V_e
             dR_e = ((Delta_e + B_e) / (pi * tau_m) + 2.0 * R_e * V_e) / tau_m
@@ -307,7 +309,8 @@ class Pietras2025(LinearCouplingModel):
 
             # Effective drive for inhibitory population
             #   (no long-range coupling for inhibitory neurons)
-            I_eff_i = eta_i + J_ie * tau_m * R_e - J_ii * tau_m * R_i
+            #I_eff_i = eta_i + J_ie * tau_m * R_e - J_ii * tau_m * R_i
+            I_eff_i = tau_m * J_ie * R_e - J_ii * tau_m * R_i
 
             # τm dR_i/dt = (Δ_i + B_i) / (π τm) + 2 R_i V_i
             dR_i = ((Delta_i + B_i) / (pi * tau_m) + 2.0 * R_i * V_i) / tau_m

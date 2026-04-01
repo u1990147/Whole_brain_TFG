@@ -1,0 +1,5 @@
+__pycache__/
+*.nbc
+*.nbi
+*.icloud
+HCP/DataHCP80/*.mat

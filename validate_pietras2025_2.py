@@ -30,7 +30,7 @@ n_steps = int(4000.0 / dt_ms) # Paper: n_steps = int(np.round(p.t_end_s / p.dt_s
 tp = np.arange(n_steps + 1) * dtp
 t = tp * tau_m_ms # temps en ms
 
-# Arrays per guardar el que retorna el dfun
+# Arrays per guardar el que retorna el dfun excitarori 
 R_e_our = np.empty_like(tp)
 V_e_our = np.empty_like(tp)
 A_e_our = np.empty_like(tp)
@@ -38,6 +38,15 @@ A_e_our = np.empty_like(tp)
 R_e_our[0] = state[0, 0]
 V_e_our[0] = state[1, 0]
 A_e_our[0] = state[2, 0]
+
+# Arrays per guardar el que retorna el dfun inhibitori 
+R_i_our = np.empty_like(tp)
+V_i_our = np.empty_like(tp)
+A_i_our = np.empty_like(tp)
+
+R_i_our[0] = state[4, 0]
+V_i_our[0] = state[5, 0]
+A_i_our[0] = state[6, 0]
 
 for k in range(n_steps):
     dfun  = dfun_mid if (1500.0 < t[k] <= 2500.0) else dfun_low
@@ -53,9 +62,13 @@ for k in range(n_steps):
     R_e_our[k+1] = state[0, 0]
     V_e_our[k+1] = state[1, 0]
     A_e_our[k+1] = state[2, 0]
+    R_i_our[k+1] = state[4, 0]
+    V_i_our[k+1] = state[5, 0]
+    A_i_our[k+1] = state[6, 0]
 
 t_s  = t / 1000.0 
 R_e_Hz = R_e_our / tau_m_ms * 1000.0
+R_i_Hz = R_i_our / tau_m_ms * 1000.0
 
 # Paper
 p = Params() 
