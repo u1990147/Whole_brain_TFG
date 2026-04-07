@@ -27,7 +27,8 @@ base_folder = WorkBrainDataFolder + "DataHCP80/"
 # ==========================================================================
 
 maxSubjects = 1003
-tasks = ['REST1', 'EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'SOCIAL', 'WM']
+# , 'EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'SOCIAL', 'WM'
+tasks = ['REST1']
 minLength = 175
 
 

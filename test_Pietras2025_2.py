@@ -103,13 +103,11 @@ def run():
         use_bold = False # False for maxRate
     )
 
-
-    simulated_bold = compact_simulator.generate_bold(
-        warmup_time = T_warm_seconds*1000, # This samples will be discarded
-        simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
-    )
-
     if compact_simulator.use_bold:
+        simulated_bold = compact_simulator.generate_bold(
+            warmup_time = T_warm_seconds*1000, # This samples will be discarded
+            simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+        )
         fig, axs = plt.subplots(1)
         fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
         axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
@@ -125,10 +123,22 @@ def run():
         plt.show()
 
     if not compact_simulator.use_bold:
-        maxRate= np.max(np.mean(simulated_bold,axis=0))
+        g_values = np.linspace(0, 10, 100)  # 100 valors entre 0 i 10
+        max_rates = []
+        for g in g_values:
+            compact_simulator.g = g
+            simulated_bold = compact_simulator.generate_bold(
+                warmup_time = T_warm_seconds*1000, # This samples will be discarded
+                simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+            )
+            maxRate= np.max(np.mean(simulated_bold,axis=0))
+            max_rates.append(maxRate)
+            
         fig, axs = plt.subplots(1)
-        fig.suptitle(f'Maximum mean rate from model Pietras2025 (g={args.g})')
-        axs.plot(maxRate)
+        fig.suptitle(f'Maximum mean rate vs coupling g')
+        axs.set_xlabel('Coupling g')
+        axs.set_ylabel('Maximum mean firing rate [Hz]')
+        axs.plot(g_values, max_rates)
         plt.show()
 
 if __name__ == '__main__':
