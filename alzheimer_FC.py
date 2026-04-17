@@ -6,7 +6,6 @@
 # adapted by Gustavo Patow
 # =======================================================================
 import argparse
-import math
 
 import numpy as np
 import scipy.io as sio
@@ -20,6 +19,7 @@ from WorkBrainFolder import *
 #config.DISABLE_JIT = True
 
 from neuronumba.tools.filters import BandPassFilter
+from neuronumba.observables.fc import FC
 
 import pietras2025_2
 from compact_generic_bold_model import Compact_Simulator
@@ -58,6 +58,23 @@ def parse_arguments():
     args = parser.parse_args()
     return args  # returns something like: Namespace(model='Hopf', tmax=10000.0, tr=2000.0, dt=100, g=1.0)
 
+def FC_mean(hcp):
+    """
+    For each subject observable FC is calculated, aplying first a band-pass filter to the BOLD signal. 
+    Then the results are averaged into a single FC matrix. Then we changed the value of G and calculate the BOLD
+    and choose the one that best fits the averaged FC. 
+    """
+    gCtrl = hcp.get_groupSubjects('REST1')[:50]
+    FC_all = []
+    for subj_id in gCtrl:
+        subj_data = hcp.get_subjectData(subj_id)[subj_id]
+        ts = subj_data['timeseries']
+        measure = FC()
+        bold_fit = filer_fMRI(ts.T) # input bold in (time, RoIs) format
+        fc = measure._compute_from_fmri(bold_fit)
+        FC_all.append(fc['FC'])
+    FC_all = np.array(FC_all)  # shape: (N_subjectes, 80, 80)
+    return np.mean(FC_all, axis=0)
 
 def run():
     args = parse_arguments()
@@ -83,7 +100,8 @@ def run():
     # ts_emp = detrend(ts_emp)
     # ts_emp_filt = filer_fMRI(ts_emp.T).T
     # FC_emp = np.corrcoef(ts_emp_filt)
-
+    fc_mean = FC_mean(hcp)
+    
     tr = 2.0
     dt = 0.01 # milliseconds (1e-5 seconds)
     Tmax_vol = 295
@@ -100,46 +118,25 @@ def run():
         sigma = 1e-03,
         tr = tr*1000,  # milliseconds
         dt = dt,   # milliseconds
-        use_bold = False # False for maxRate
+        use_bold = True # False for maxRate
     )
 
-    if compact_simulator.use_bold:
+    g_values = np.linspace(0.1, 10, 10)  # 100 values between 0 and 10
+    for g in g_values:
+        compact_simulator.g = g
         simulated_bold = compact_simulator.generate_bold(
             warmup_time = T_warm_seconds*1000, # This samples will be discarded
             simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
         )
-        fig, axs = plt.subplots(1)
-        fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
-        axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
-        plt.show()
-
-        variances = np.var(simulated_bold, axis=0)
-        selected_rois = np.argsort(variances)[-5:]
-        shape = np.arange(simulated_bold.shape[0])
-
-        fig2, axs2 = plt.subplots(1, figsize=(10, 5))
-        fig2.suptitle(f'Most variable ROI signals (g={args.g})')
-        axs2.plot(shape, simulated_bold[:, selected_rois])
-        plt.show()
-
-    if not compact_simulator.use_bold:
-        g_values = np.linspace(0, 10, 100)  # 100 valors entre 0 i 10
-        max_rates = []
-        for g in g_values:
-            compact_simulator.g = g
-            simulated_bold = compact_simulator.generate_bold(
-                warmup_time = T_warm_seconds*1000, # This samples will be discarded
-                simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
-            )
-            maxRate= np.max(np.mean(simulated_bold,axis=0))
-            max_rates.append(maxRate)
-            
-        fig, axs = plt.subplots(1)
-        fig.suptitle(f'Maximum mean rate vs coupling g')
-        axs.set_xlabel('Coupling g')
-        axs.set_ylabel('Maximum mean firing rate [Hz]')
-        axs.plot(g_values, max_rates)
-        plt.show()
+        # FC simulated
+        measure = FC()
+        bold_fit = filer_fMRI(simulated_bold) # input bold in (time, RoIs) format
+        fc_sim = measure._compute_from_fmri(bold_fit)
+        print(fc_sim['FC'].shape)
+        # fig, axs = plt.subplots(1)
+        # fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
+        # axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
+        # plt.show()
 
 if __name__ == '__main__':
     run()

@@ -12,6 +12,8 @@ import numpy as np
 import scipy.io as sio
 from scipy.signal import detrend
 from matplotlib import pyplot as plt
+from HCP_dbs80 import HCP
+from WorkBrainFolder import *
 
 # If need to debug numba code, uncomment this
 #from numba import config
@@ -20,8 +22,8 @@ from matplotlib import pyplot as plt
 from neuronumba.tools.filters import BandPassFilter
 
 import pietras2025_2
-import Pietras2025
 from compact_generic_bold_model import Compact_Simulator
+from compact_bold_simulator import CompactMontbrioSimulator
 
 
 def filer_fMRI(fMRI):  # fMRI in (time, RoIs) format
@@ -63,10 +65,12 @@ def run():
     # We generate a Mock-up structural connectivity (SC) matrix for the purpose of the example. In a real-world scenario
     # you should use the real one.
     # sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
-    # np.npfill_diagonal(sc_norm, 0.0)
+    # np.fill_diagonal(sc_norm, 0.0)
+    hcp = HCP()
+    sc_norm = hcp.get_AvgSC_ctrl()
     #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
-    #sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
-    sc_norm = np.array([[0.0]])
+    sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
+    #sc_norm = np.array([[0.0]])
     # plt.matshow(sc_norm)
     # plt.show()
 
@@ -82,37 +86,52 @@ def run():
 
     tr = 2.0
     dt = 0.01 # milliseconds (1e-5 seconds)
-    Tmax_vol = 500
+    Tmax_vol = 295
     T_sim_seconds = (Tmax_vol * tr)
     T_warm_seconds = 20
 
-    print("Parameters defined")
 
     compact_simulator = Compact_Simulator(
-        model = Pietras2025.Pietras2025(),
+        model = pietras2025_2.Pietras2025(),
         obs_var = 'R_e_Hz',
         weights = sc_norm,
         use_temporal_avg_monitor = False,
         g = 5.30,
         sigma = 1e-03,
         tr = tr*1000,  # milliseconds
-        dt = dt   # milliseconds
+        dt = dt,   # milliseconds
+        use_bold = False # False for maxRate
     )
 
-    print("Compact siulator created")
+    if compact_simulator.use_bold:
+        simulated_bold = compact_simulator.generate_bold(
+            warmup_time = T_warm_seconds*1000, # This samples will be discarded
+            simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+        )
+        fig, axs = plt.subplots(1)
+        fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
+        axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
+        plt.show()
 
-    simulated_bold = compact_simulator.generate_bold(
-        warmup_time = T_warm_seconds*1000, # This samples will be discarded
-        simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
-    )
 
-    print("Simulated BOLD signal generated")
-
-    fig, axs = plt.subplots(1)
-    fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
-    axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
-    plt.show()
-
+    if not compact_simulator.use_bold:
+        g_values = np.linspace(0, 10.1, 100)  # 100 values between 0 and 10
+        max_rates = []
+        for g in g_values:
+            compact_simulator.g = g
+            simulated_bold = compact_simulator.generate_bold(
+                warmup_time = T_warm_seconds*1000, # This samples will be discarded
+                simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+            )
+            maxRate= np.max(np.mean(simulated_bold,axis=0))
+            max_rates.append(maxRate)
+            
+        fig, axs = plt.subplots(1)
+        fig.suptitle(f'Maximum mean rate vs coupling g')
+        axs.set_xlabel('Coupling g')
+        axs.set_ylabel('Maximum mean firing rate [Hz]')
+        axs.plot(g_values, max_rates)
+        plt.show()
 
 if __name__ == '__main__':
     run()
