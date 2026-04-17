@@ -1,10 +1,3 @@
-# =======================================================================
-# Convenience simplification layer for NeuroNumba:
-#     https://github.com/neich/neuronumba
-#
-# By Albert Juncà
-# adapted by Gustavo Patow
-# =======================================================================
 import argparse
 
 import numpy as np
@@ -20,6 +13,7 @@ from WorkBrainFolder import *
 
 from neuronumba.tools.filters import BandPassFilter
 from neuronumba.observables.fc import FC
+import neuronumba.observables.measures as measures
 
 import pietras2025_2
 from compact_generic_bold_model import Compact_Simulator
@@ -84,6 +78,7 @@ def run():
     # sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
     # np.fill_diagonal(sc_norm, 0.0)
     hcp = HCP()
+    adni = ADNI()
     sc_norm = hcp.get_AvgSC_ctrl()
     #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
     sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
@@ -101,7 +96,7 @@ def run():
     # ts_emp_filt = filer_fMRI(ts_emp.T).T
     # FC_emp = np.corrcoef(ts_emp_filt)
     fc_mean = FC_mean(hcp)
-    
+
     tr = 2.0
     dt = 0.01 # milliseconds (1e-5 seconds)
     Tmax_vol = 295
@@ -121,22 +116,47 @@ def run():
         use_bold = True # False for maxRate
     )
 
+    gCtrl = adni.get_groupSubjects('HC')[:10]
+    gMci = adni.get_groupSubjects('MCI')[:10]
+    gAd = adni.get_groupSubjects('AD')[:10]
     g_values = np.linspace(0.1, 10, 10)  # 100 values between 0 and 10
-    for g in g_values:
-        compact_simulator.g = g
-        simulated_bold = compact_simulator.generate_bold(
-            warmup_time = T_warm_seconds*1000, # This samples will be discarded
-            simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
-        )
-        # FC simulated
-        measure = FC()
-        bold_fit = filer_fMRI(simulated_bold) # input bold in (time, RoIs) format
-        fc_sim = measure._compute_from_fmri(bold_fit)
-        print(fc_sim['FC'].shape)
-        # fig, axs = plt.subplots(1)
-        # fig.suptitle(f'Result for model Pietras2025 (g={args.g})')
-        # axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
-        # plt.show()
+    fc_corrs = []
+
+    # For each subject of the 3 ADNI groups we calculate the FC
+    for subj_id in gCtrl, gMci, gAd:
+        subj_data = adni.get_subjectData(subj_id)[subj_id]
+        ts = subj_data['timeseries']
+        observable = FC()
+        bold_fit = filer_fMRI(ts.T) # input bold in (time, RoIs) format
+        fc_subject = observable._compute_from_fmri(bold_fit)
+
+        for g in g_values: # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
+            compact_simulator.g = g
+            simulations = []
+            for _ in range(5):  # Run multiple trials for each G and average results
+                simulated_bold = compact_simulator.generate_bold(
+                    warmup_time = T_warm_seconds*1000, # This samples will be discarded
+                    simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+                )
+                simulations.append(simulated_bold)
+            sim_average = np.mean(simulations, axis=0)  # Average BOLD across trials for this G
+            
+            # FC simulated
+            bold_fit = filer_fMRI(sim_average) # input bold in (time, RoIs) format
+            fc_sim = observable._compute_from_fmri(bold_fit)
+            
+            # Compare FC_sim with FC_subject
+            pearsonDiss = measures.PearsonDissimilarity()
+            PD_value= pearsonDiss.distance(fc_subject, fc_sim)
+            fc_corrs.append(PD_value)
+
+    # Plot of optimal G of each subject
+    fig, axs = plt.subplots(1)
+    fig.suptitle(f'Optimal G of each subject')
+    axs.set_xlabel('Coupling g')
+    axs.set_ylabel('Pearson Dissimilarity')
+    axs.plot(g_values, fc_corrs)
+    plt.show()
 
 if __name__ == '__main__':
     run()
