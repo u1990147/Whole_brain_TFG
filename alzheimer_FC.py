@@ -140,7 +140,7 @@ def run():
     subjs={group:DL.get_groupSubjects(group)[:3]
            for group in DL.get_groupLabels()}
 
-    g_values = np.linspace(0.1, 10, 10)  # 100 values between 0 and 10
+    g_values = np.arange(0, 11, 1)  # 10 values between 0 and 10
     fc_corrs = []
 
     # For each subject of the 3 ADNI groups we calculate the FC
@@ -169,7 +169,7 @@ def run():
                 
                 # Compare FC_sim with FC_subject
                 pearsonDiss = measures.PearsonDissimilarity()
-                PD_value= pearsonDiss.distance(fc_subject, fc_sim)
+                PD_value= pearsonDiss.distance(fc_subject['FC'], fc_sim['FC'])
                 fc_corrs.append(PD_value)
 
     # Plot of optimal G of each subject
