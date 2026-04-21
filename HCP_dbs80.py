@@ -21,7 +21,7 @@ from baseDataLoader import DataLoader
 # Important config options: filenames
 # ==========================================================================
 from WorkBrainFolder import *
-base_folder = WorkBrainDataFolder + "DataHCP80/"
+base_folder = WorkBrainDataFolder + "HCP/DataHCP80/"
 # ==========================================================================
 # ==========================================================================
 # ==========================================================================

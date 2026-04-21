@@ -4,7 +4,6 @@ import numpy as np
 import scipy.io as sio
 from scipy.signal import detrend
 from matplotlib import pyplot as plt
-from HCP_dbs80 import HCP
 from WorkBrainFolder import *
 
 # If need to debug numba code, uncomment this
@@ -41,16 +40,38 @@ def filer_fMRI(fMRI):  # fMRI in (time, RoIs) format
     return bpf.filter(fMRI)
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser()
+# def parse_arguments():
+#     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--tmax", help="Simulation time (milliseconds)", type=float, default=1000.0)
-    parser.add_argument("--tr", help="Temporal resolution (TR) for the BOLD signal (milliseconds)", type=float, default=2000.0)
-    parser.add_argument("--dt", help=("Simulation delta-time (milliseconds)."), type=float, default=0.1)
-    parser.add_argument("--g", help="Global scaling for SC matrix normalization", type=float, default=1.0)
+#     parser.add_argument("--tmax", help="Simulation time (milliseconds)", type=float, default=1000.0)
+#     parser.add_argument("--tr", help="Temporal resolution (TR) for the BOLD signal (milliseconds)", type=float, default=2000.0)
+#     parser.add_argument("--dt", help=("Simulation delta-time (milliseconds)."), type=float, default=0.1)
+#     parser.add_argument("--g", help="Global scaling for SC matrix normalization", type=float, default=1.0)
 
-    args = parser.parse_args()
-    return args  # returns something like: Namespace(model='Hopf', tmax=10000.0, tr=2000.0, dt=100, g=1.0)
+#     args = parser.parse_args()
+#     return args  # returns something like: Namespace(model='Hopf', tmax=10000.0, tr=2000.0, dt=100, g=1.0)
+
+def dataLoader(database='HCP'):
+    """ 
+    This function is used to load the data from different databases and return the correspondig object.
+    In this case HCP or ADNI.
+
+    Parameters
+    ----------
+    database : str
+        Name of the database to load. Options: 'HCP', 'ADNI'
+    
+    Returns
+    -------
+    DataLoader object
+    """
+    
+    if database == 'HCP':
+        from HCP_dbs80 import HCP
+        return HCP()
+    elif database == 'ADNI':
+        from ADNI_A import ADNI_A
+        return ADNI_A()
 
 def FC_mean(hcp):
     """
@@ -71,15 +92,14 @@ def FC_mean(hcp):
     return np.mean(FC_all, axis=0)
 
 def run():
-    args = parse_arguments()
+    #args = parse_arguments()
 
     # We generate a Mock-up structural connectivity (SC) matrix for the purpose of the example. In a real-world scenario
     # you should use the real one.
     # sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
     # np.fill_diagonal(sc_norm, 0.0)
-    hcp = HCP()
-    adni = ADNI()
-    sc_norm = hcp.get_AvgSC_ctrl()
+    DL = dataLoader(database='HCP')
+    sc_norm = DL.get_AvgSC_ctrl()
     #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
     sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
     #sc_norm = np.array([[0.0]])
@@ -95,13 +115,14 @@ def run():
     # ts_emp = detrend(ts_emp)
     # ts_emp_filt = filer_fMRI(ts_emp.T).T
     # FC_emp = np.corrcoef(ts_emp_filt)
-    fc_mean = FC_mean(hcp)
+    #fc_mean = FC_mean(hcp)
 
     tr = 2.0
-    dt = 0.01 # milliseconds (1e-5 seconds)
-    Tmax_vol = 295
+    dt = 0.1 # milliseconds (1e-4 seconds)
+    Tmax_vol = 100
     T_sim_seconds = (Tmax_vol * tr)
-    T_warm_seconds = 20
+    T_warm_seconds = 10
+    sim_repes = 5
 
 
     compact_simulator = Compact_Simulator(
@@ -116,39 +137,40 @@ def run():
         use_bold = True # False for maxRate
     )
 
-    gCtrl = adni.get_groupSubjects('HC')[:10]
-    gMci = adni.get_groupSubjects('MCI')[:10]
-    gAd = adni.get_groupSubjects('AD')[:10]
+    subjs={group:DL.get_groupSubjects(group)[:3]
+           for group in DL.get_groupLabels()}
+
     g_values = np.linspace(0.1, 10, 10)  # 100 values between 0 and 10
     fc_corrs = []
 
     # For each subject of the 3 ADNI groups we calculate the FC
-    for subj_id in gCtrl, gMci, gAd:
-        subj_data = adni.get_subjectData(subj_id)[subj_id]
-        ts = subj_data['timeseries']
-        observable = FC()
-        bold_fit = filer_fMRI(ts.T) # input bold in (time, RoIs) format
-        fc_subject = observable._compute_from_fmri(bold_fit)
+    for group in subjs:
+        for subj_id in subjs[group]:
+            subj_data = DL.get_subjectData(subj_id)[subj_id]
+            ts = subj_data['timeseries']
+            observable = FC()
+            bold_fit = filer_fMRI(ts.T) # input bold in (time, RoIs) format
+            fc_subject = observable._compute_from_fmri(bold_fit)
 
-        for g in g_values: # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
-            compact_simulator.g = g
-            simulations = []
-            for _ in range(5):  # Run multiple trials for each G and average results
-                simulated_bold = compact_simulator.generate_bold(
-                    warmup_time = T_warm_seconds*1000, # This samples will be discarded
-                    simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
-                )
-                simulations.append(simulated_bold)
-            sim_average = np.mean(simulations, axis=0)  # Average BOLD across trials for this G
-            
-            # FC simulated
-            bold_fit = filer_fMRI(sim_average) # input bold in (time, RoIs) format
-            fc_sim = observable._compute_from_fmri(bold_fit)
-            
-            # Compare FC_sim with FC_subject
-            pearsonDiss = measures.PearsonDissimilarity()
-            PD_value= pearsonDiss.distance(fc_subject, fc_sim)
-            fc_corrs.append(PD_value)
+            for g in g_values: # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
+                compact_simulator.g = g
+                simulations = []
+                for _ in range(sim_repes):  # Run multiple trials for each G and average results
+                    simulated_bold = compact_simulator.generate_bold(
+                        warmup_time = T_warm_seconds*1000, # This samples will be discarded
+                        simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+                    )
+                    simulations.append(simulated_bold)
+                sim_average = np.mean(simulations, axis=0)  # Average BOLD across trials for this G
+                
+                # FC simulated
+                bold_fit = filer_fMRI(sim_average) # input bold in (time, RoIs) format
+                fc_sim = observable._compute_from_fmri(bold_fit)
+                
+                # Compare FC_sim with FC_subject
+                pearsonDiss = measures.PearsonDissimilarity()
+                PD_value= pearsonDiss.distance(fc_subject, fc_sim)
+                fc_corrs.append(PD_value)
 
     # Plot of optimal G of each subject
     fig, axs = plt.subplots(1)

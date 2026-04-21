@@ -8,4 +8,4 @@ from sys import platform
 
 WorkBrainFolder = "/Users/lola/Desktop/TFG/Neuronumba/Lola/TFG/"
 
-WorkBrainDataFolder = WorkBrainFolder + "HCP/"
+WorkBrainDataFolder = WorkBrainFolder

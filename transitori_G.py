@@ -103,38 +103,17 @@ def run():
         use_bold = True # False for maxRate
     )
 
-    if compact_simulator.use_bold:
-        g_values = np.arange(2, 10, 2) # 2, 4, 6 and 8
-        for g in g_values:
-            compact_simulator.g = g
-            simulated_bold = compact_simulator.generate_bold(
-                warmup_time = 0, 
-                simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
-            )
-            # Show each simulation separately
-            fig, axs = plt.subplots(1)
-            fig.suptitle(f'Result for model Pietras2025 (g={compact_simulator.g})')
-            axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
-            plt.show()
-
-
-    if not compact_simulator.use_bold:
-        g_values = np.linspace(0, 10, 100)  # 100 valors between 0 and 10
-        max_rates = []
-        for g in g_values:
-            compact_simulator.g = g
-            simulated_bold = compact_simulator.generate_bold(
-                warmup_time = T_warm_seconds*1000, # This samples will be discarded
-                simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
-            )
-            maxRate= np.max(np.mean(simulated_bold,axis=0))
-            max_rates.append(maxRate)
-            
+    g_values = np.arange(2, 10, 2) # 2, 4, 6 and 8
+    for g in g_values:
+        compact_simulator.g = g
+        simulated_bold = compact_simulator.generate_bold(
+            warmup_time = 0, 
+            simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
+        )
+        # Show each simulation separately
         fig, axs = plt.subplots(1)
-        fig.suptitle(f'Maximum mean rate vs coupling g')
-        axs.set_xlabel('Coupling g')
-        axs.set_ylabel('Maximum mean firing rate [Hz]')
-        axs.plot(g_values, max_rates)
+        fig.suptitle(f'Result for model Pietras2025 (g={compact_simulator.g})')
+        axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
         plt.show()
 
 if __name__ == '__main__':
