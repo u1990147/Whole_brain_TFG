@@ -113,6 +113,7 @@ def run():
         # Show each simulation separately
         fig, axs = plt.subplots(1)
         fig.suptitle(f'Result for model Pietras2025 (g={compact_simulator.g})')
+        axs.set_ylabel('time[s]')
         axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
         plt.show()
 

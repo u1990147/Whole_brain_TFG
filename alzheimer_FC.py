@@ -1,5 +1,3 @@
-import argparse
-
 import numpy as np
 import scipy.io as sio
 from scipy.signal import detrend
@@ -141,18 +139,21 @@ def run():
            for group in DL.get_groupLabels()}
 
     g_values = np.arange(0, 11, 1)  # 10 values between 0 and 10
-    fc_corrs = []
+    fc_corrs = {group: np.full((len(subjs[group]), len(g_values)), np.nan) 
+                for group in subjs}
+    optimal_g = {group: np.full(len(subjs[group]), np.nan)
+                for group in subjs}
 
     # For each subject of the 3 ADNI groups we calculate the FC
     for group in subjs:
-        for subj_id in subjs[group]:
+        for subj_indx, subj_id in enumerate(subjs[group]):
             subj_data = DL.get_subjectData(subj_id)[subj_id]
             ts = subj_data['timeseries']
             observable = FC()
             bold_fit = filer_fMRI(ts.T) # input bold in (time, RoIs) format
             fc_subject = observable._compute_from_fmri(bold_fit)
 
-            for g in g_values: # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
+            for g_indx, g in enumerate(g_values): # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
                 compact_simulator.g = g
                 simulations = []
                 for _ in range(sim_repes):  # Run multiple trials for each G and average results
@@ -170,15 +171,23 @@ def run():
                 # Compare FC_sim with FC_subject
                 pearsonDiss = measures.PearsonDissimilarity()
                 PD_value= pearsonDiss.distance(fc_subject['FC'], fc_sim['FC'])
-                fc_corrs.append(PD_value)
+                fc_corrs[group][subj_indx, g_indx] = PD_value
+            
+            # Find optimal G for this subject
+            optimal_g[group][subj_indx] = g_values[np.argmin(fc_corrs[group][subj_indx])]
+    
 
-    # Plot of optimal G of each subject
+    # Plot of PersonDissimilarity result for each G value of one subject
+    subj_idx = 0  
+    group = 'AD'
     fig, axs = plt.subplots(1)
-    fig.suptitle(f'Optimal G of each subject')
+    fig.suptitle(f'Optimal G of subject {subj_idx} ({group})')
     axs.set_xlabel('Coupling g')
     axs.set_ylabel('Pearson Dissimilarity')
-    axs.plot(g_values, fc_corrs)
+    axs.plot(g_values, fc_corrs[group][subj_idx])
     plt.show()
+
+    # Plot mean for each group?
 
 if __name__ == '__main__':
     run()
