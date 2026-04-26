@@ -116,7 +116,7 @@ def run():
     #fc_mean = FC_mean(hcp)
 
     tr = 2.0
-    dt = 0.1 # milliseconds (1e-4 seconds)
+    dt = 0.01 # milliseconds (1e-4 seconds)
     Tmax_vol = 100
     T_sim_seconds = (Tmax_vol * tr)
     T_warm_seconds = 10
@@ -135,7 +135,7 @@ def run():
         use_bold = True # False for maxRate
     )
 
-    subjs={group:DL.get_groupSubjects(group)[:3]
+    subjs={group:DL.get_groupSubjects(group)[:10]
            for group in DL.get_groupLabels()}
 
     g_values = np.arange(0, 11, 1)  # 10 values between 0 and 10
@@ -155,22 +155,22 @@ def run():
 
             for g_indx, g in enumerate(g_values): # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
                 compact_simulator.g = g
-                simulations = []
+                fcs_sim = []
                 for _ in range(sim_repes):  # Run multiple trials for each G and average results
                     simulated_bold = compact_simulator.generate_bold(
                         warmup_time = T_warm_seconds*1000, # This samples will be discarded
                         simulated_time = T_sim_seconds*1000   # Number of useful samples to generate, this will be the size of the generated bold
                     )
-                    simulations.append(simulated_bold)
-                sim_average = np.mean(simulations, axis=0)  # Average BOLD across trials for this G
+                    # FC simulated
+                    bold_fit = filer_fMRI(simulated_bold) # input bold in (time, RoIs) format
+                    fc_sim = observable._compute_from_fmri(bold_fit)
+                    fcs_sim.append(fc_sim['FC'])
+                fc_average = np.mean(fcs_sim, axis=0)  # Average FC across trials for this G
                 
-                # FC simulated
-                bold_fit = filer_fMRI(sim_average) # input bold in (time, RoIs) format
-                fc_sim = observable._compute_from_fmri(bold_fit)
                 
                 # Compare FC_sim with FC_subject
                 pearsonDiss = measures.PearsonDissimilarity()
-                PD_value= pearsonDiss.distance(fc_subject['FC'], fc_sim['FC'])
+                PD_value= pearsonDiss.distance(fc_subject['FC'], fc_average)
                 fc_corrs[group][subj_indx, g_indx] = PD_value
             
             # Find optimal G for this subject
@@ -179,7 +179,7 @@ def run():
 
     # Plot of PersonDissimilarity result for each G value of one subject
     subj_idx = 0  
-    group = 'AD'
+    group = list(subjs.keys())[0]
     fig, axs = plt.subplots(1)
     fig.suptitle(f'Optimal G of subject {subj_idx} ({group})')
     axs.set_xlabel('Coupling g')
