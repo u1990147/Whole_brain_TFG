@@ -12,7 +12,7 @@ from neuronumba.tools.filters import BandPassFilter
 from neuronumba.observables.fc import FC
 import neuronumba.observables.measures as measures
 
-import pietras2025_2
+import Pietras2025
 from compact_generic_bold_model import Compact_Simulator
 from compact_bold_simulator import CompactMontbrioSimulator
 
@@ -116,7 +116,7 @@ def run():
     #fc_mean = FC_mean(hcp)
 
     tr = 2.0
-    dt = 0.01 # milliseconds (1e-4 seconds)
+    dt = 0.1 # milliseconds (1e-4 seconds)
     Tmax_vol = 100
     T_sim_seconds = (Tmax_vol * tr)
     T_warm_seconds = 10
@@ -124,7 +124,7 @@ def run():
 
 
     compact_simulator = Compact_Simulator(
-        model = pietras2025_2.Pietras2025(),
+        model = Pietras2025.Pietras2025(),
         obs_var = 'R_e_Hz',
         weights = sc_norm,
         use_temporal_avg_monitor = False,
@@ -144,7 +144,7 @@ def run():
     optimal_g = {group: np.full(len(subjs[group]), np.nan)
                 for group in subjs}
 
-    # For each subject of the 3 ADNI groups we calculate the FC
+    # For each subject of the dataset we calculate the FC
     for group in subjs:
         for subj_indx, subj_id in enumerate(subjs[group]):
             subj_data = DL.get_subjectData(subj_id)[subj_id]
@@ -155,6 +155,7 @@ def run():
 
             for g_indx, g in enumerate(g_values): # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
                 compact_simulator.g = g
+                print(g)
                 fcs_sim = []
                 for _ in range(sim_repes):  # Run multiple trials for each G and average results
                     simulated_bold = compact_simulator.generate_bold(

@@ -21,7 +21,7 @@ from WorkBrainFolder import *
 
 from neuronumba.tools.filters import BandPassFilter
 
-import pietras2025_2
+import Pietras2025
 from compact_generic_bold_model import Compact_Simulator
 from compact_bold_simulator import CompactMontbrioSimulator
 
@@ -92,7 +92,7 @@ def run():
 
 
     compact_simulator = Compact_Simulator(
-        model = pietras2025_2.Pietras2025(),
+        model = Pietras2025.Pietras2025(),
         obs_var = 'R_e_Hz',
         weights = sc_norm,
         use_temporal_avg_monitor = False,

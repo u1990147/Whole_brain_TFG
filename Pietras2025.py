@@ -8,39 +8,49 @@
 #               Physical Review E 111, 014422 (2025)
 #               DOI: 10.1103/PhysRevE.111.014422
 #
-# And its Erratum, which specifies the exact 4D transient system (part c):
+# Equations taken from the Erratum (part c) and verified against the reference
+# Python implementation (fig5_network_vs_meanfield.py, simulate_fre_4d).
 #
-#   τm Ṙ = (Δ + B) / (π τm) + 2 R V
-#   τm V̇ = V² − (π τm R)² + η̄(t) + J τm R − A
-#   τa Ȧ = −(1 + β) A + β [η̄(t) + J τm R]
-#   τa Ḃ = −(1 + β) B − β Δ
+# The equations are written in DIMENSIONLESS TIME t' = t / tau_m.
+# All four mean-field variables (r, v, a, b) are dimensionless.
+# The physical firing rate in Hz is R_Hz = r / tau_m_s.
 #
-# Note: R above is dimensionless (units 1/τm); physical firing rate in Hz is
-#       R_Hz = R / τm.  The asymptotic B → −βΔ/(1+β) recovers the 3D FRE.
+# Single-population dimensionless equations (directly from simulate_fre_4d):
 #
-# This implementation extends the model to two coupled populations
-# (excitatory E and inhibitory I), following the two-population conventions
-# of the Deco2014 model in this library. Inter-region coupling is carried
-# via the excitatory firing rate R_e (dimensionless), weighted by the
-# structural connectivity matrix and global coupling g (LinearCouplingModel).
+#   dr/dt' =  (Delta + b) / pi  +  2 * r * v
+#   dv/dt' =  v^2  -  (pi * r)^2  +  eta_bar  +  J * r  -  a
+#   da/dt' = [ beta * (eta_bar + J * r)  -  (1 + beta) * a ] / tau
+#   db/dt' = [ -(1 + beta) * b  -  beta * Delta ] / tau
 #
-# State variables (per ROI):
-#   R_e : dimensionless excitatory firing rate  (= τm * R_Hz_e)
-#   V_e : mean excitatory membrane potential
-#   A_e : real part of excitatory complex adaptation order parameter
-#   B_e : imaginary part of excitatory complex adaptation order parameter
-#   R_i : dimensionless inhibitory firing rate
-#   V_i : mean inhibitory membrane potential
-#   A_i : real part of inhibitory complex adaptation order parameter
-#   B_i : imaginary part of inhibitory complex adaptation order parameter
+# where  tau = tau_a / tau_m  (dimensionless ratio, e.g. 10 for Fig. 5).
 #
-# Observable variables (per ROI):
-#   R_e_Hz : excitatory firing rate in Hz  (= R_e / tau_m)
-#   R_i_Hz : inhibitory firing rate in Hz  (= R_i / tau_m)
+# Two-population extension (E and I):
+#   - Excitatory (e) and inhibitory (i) populations each obey the 4D system.
+#   - The effective drive for each population replaces eta_bar:
 #
-# Coupling variable:
-#   R_e : only the excitatory dimensionless firing rate is communicated
-#         across regions (analogous to S_e in Deco2014).
+#       I_eff_e = eta_e  +  J_ee * r_e  -  J_ei * r_i  +  c_e
+#       I_eff_i = eta_i  +  J_ie * r_e  -  J_ii * r_i
+#
+#     where c_e = g * (W^T @ r_e) is the long-range inter-region excitatory
+#     input, computed by LinearCouplingModel.  It enters identically to eta
+#     (i.e. as an additive drive), consistent with Eq. (6) of the paper and
+#     the dimensionless treatment of the reference code.
+#
+#   - Only r_e drives inter-region coupling.
+#   - Inhibitory neurons receive only local excitatory drive (no long-range).
+#
+# State variables (8 per ROI):
+#   r_e, v_e, a_e, b_e   — excitatory population
+#   r_i, v_i, a_i, b_i   — inhibitory population
+#
+# Observable variables (2 per ROI):
+#   R_e_Hz = r_e / tau_m_s   [Hz]
+#   R_i_Hz = r_i / tau_m_s   [Hz]
+#
+# Coupling variable:  r_e  (dimensionless excitatory firing rate)
+#
+# Initial conditions (from Erratum):
+#   r(0) = r0 = 0.10,  v(0) = v0 = -0.20,  a(0) = 0,  b(0) = 0
 #
 # ==========================================================================
 # ==========================================================================
@@ -57,138 +67,115 @@ from neuronumba.numba_tools.config import NUMBA_CACHE, NUMBA_FASTMATH, NUMBA_NOG
 
 class Pietras2025(LinearCouplingModel):
     """
-    4D Transient Mean-Field model for adaptive QIF networks (Pietras et al. 2025).
+    4D Transient Mean-Field model for adaptive QIF networks (Pietras et al. 2025),
+    extended to two coupled populations (excitatory and inhibitory).
 
-    Implements the exact low-dimensional firing rate equations (FREs) for a
-    large population of heterogeneous quadratic integrate-and-fire (QIF) neurons
-    with quadratic spike-frequency adaptation (QSFA), extended here to two
-    coupled populations (excitatory and inhibitory).
+    All internal variables are in dimensionless time t' = t / tau_m, matching
+    exactly the reference simulation (simulate_fre_4d in fig5_network_vs_meanfield.py).
+    The library integrator must therefore use dt' = dt_s / tau_m as its step.
 
-    The model tracks four mean-field variables per population:
-        R  – dimensionless firing rate (physical rate R_Hz = R / τm)
-        V  – mean membrane potential
-        A  – real part of the complex adaptation order parameter (mean adaptation)
-        B  – imaginary part (captures transient heterogeneity relaxation)
-
-    Asymptotically B → −β Δ / (1+β), so Δ + B → Δ/(1+β), recovering the 3D FRE.
-
-    Inter-region coupling uses LinearCouplingModel (SC-weighted, scaled by g),
-    and only the excitatory R_e is communicated across regions.
+    The four dimensionless mean-field variables per population are:
+        r  — dimensionless firing rate  (R_Hz = r / tau_m_s)
+        v  — mean membrane potential
+        a  — real part of complex adaptation order parameter (mean adaptation)
+        b  — imaginary part (transient heterogeneity; b -> -beta*Delta/(1+beta) asymptotically)
 
     Parameters
     ----------
-    Shared timescales
-        tau_m   : membrane time constant [s]  (default 10 ms = 0.01 s)
-        tau_a_e : excitatory adaptation time constant [s]  (default 100 ms)
-        tau_a_i : inhibitory adaptation time constant [s]  (default  20 ms)
-
-    Excitatory population
-        Delta_e : Lorentzian half-width of η_e distribution (heterogeneity)
-        eta_e   : mean external drive η̄_e  (can vary externally)
-        J_ee    : excitatory-to-excitatory recurrent coupling
-        J_ei    : inhibitory-to-excitatory coupling (negative feedback; sign
-                  convention: subtracted in V̇_e equation)
-        beta_e  : QSFA adaptation strength for excitatory neurons
-
-    Inhibitory population
-        Delta_i : Lorentzian half-width of η_i distribution
-        eta_i   : mean external drive η̄_i
-        J_ie    : excitatory-to-inhibitory coupling
-        J_ii    : inhibitory self-coupling (subtracted in V̇_i)
-        beta_i  : QSFA adaptation strength for inhibitory neurons
+    tau_m     : membrane time constant [ms]           (default: 10 ms = 0.01 s)
+    tau_a_e   : excitatory adaptation time constant [ms]  (default: 100 ms = 0.1 s)
+    tau_a_i   : inhibitory adaptation time constant [ms]  (default:  20 ms = 0.02 s)
+    Delta_e   : Lorentzian half-width Delta_e (excitatory heterogeneity)
+    Delta_i   : Lorentzian half-width Delta_i (inhibitory heterogeneity)
+    eta_e     : mean excitatory external drive eta_e
+    eta_i     : mean inhibitory external drive eta_i
+    J_ee      : excitatory-to-excitatory coupling weight
+    J_ei      : inhibitory-to-excitatory coupling weight (subtracted in drive)
+    J_ie      : excitatory-to-inhibitory coupling weight
+    J_ii      : inhibitory self-coupling weight (subtracted in drive)
+    beta_e    : QSFA adaptation strength for excitatory population
+    beta_i    : QSFA adaptation strength for inhibitory population
 
     Notes
     -----
-    All variables and parameters use SI units (seconds), consistent with the
-    Erratum convention where τm is expressed in seconds.  The structural
-    connectivity matrix (weights) is assumed to be already normalised; the
-    global coupling g (inherited from LinearCouplingModel) scales it.
-
-    References
-    ----------
-    Pietras B., Clusella P., Montbrió E. (2025) Phys. Rev. E 111, 014422.
-    Erratum: specification of the 4D transient mean-field system.
+    All J weights appear as  J * r  in the dimensionless equations, consistent
+    with the reference code (simulate_fre_4d: `p.J * rr`), NOT as J * tau_m * r.
+    The global coupling g (from LinearCouplingModel) scales the inter-region
+    structural connectivity; it has units consistent with dimensionless r_e.
     """
 
     # ------------------------------------------------------------------
-    # Variable name declarations (required by Model base class)
+    # Variable name declarations
     # ------------------------------------------------------------------
 
-    _state_var_names = ['R_e', 'V_e', 'A_e', 'B_e',
-                        'R_i', 'V_i', 'A_i', 'B_i']
-
-    _coupling_var_names = ['R_e']          # only excitatory rate couples regions
-
+    _state_var_names      = ['R_e', 'V_e', 'A_e', 'B_e',
+                              'R_i', 'V_i', 'A_i', 'B_i']
+    _coupling_var_names   = ['R_e']                           # only R_e couples regions
     _observable_var_names = ['R_e_Hz', 'R_i_Hz']
 
     # ------------------------------------------------------------------
-    # Model Parameters — REGIONAL (packed into self.m, one value per ROI)
+    # Parameters — REGIONAL (one scalar per ROI, packed into self.m)
     # ------------------------------------------------------------------
 
-    # --- Membrane time constant (same for both populations) ---
-    tau_m = Attr(default=0.01, attributes=Model.Tag.REGIONAL,
-                 doc="Membrane time constant [s] (default: 10 ms)")
+    # Timescales (in milliseconds)
+    tau_m = Attr(default=10, attributes=Model.Tag.REGIONAL,
+                   doc="Membrane time constant [ms] (default 0.01 ms)")
 
-    # --- Excitatory population parameters ---
-    tau_a_e = Attr(default=0.10, attributes=Model.Tag.REGIONAL,
-                   doc="Excitatory adaptation time constant [s] (default: 100 ms)")
+    tau_a_e = Attr(default=100, attributes=Model.Tag.REGIONAL,
+                     doc="Excitatory adaptation time constant [ms] (default 100 ms)")
 
+    tau_a_i = Attr(default=100, attributes=Model.Tag.REGIONAL,
+                     doc="Inhibitory adaptation time constant [ms] (default 100 ms)")
+
+    # Excitatory population
     Delta_e = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
-                   doc="Lorentzian half-width of excitatory η distribution (heterogeneity)")
+                   doc="Lorentzian half-width of excitatory eta distribution (Delta_e)")
 
     eta_e = Attr(default=-1.74, attributes=Model.Tag.REGIONAL,
-                 doc="Mean excitatory external drive η̄_e")
+                 doc="Mean excitatory external drive eta_e (Fig. 5 low state: -1.74)")
 
     J_ee = Attr(default=10.0, attributes=Model.Tag.REGIONAL,
-                doc="Excitatory-to-excitatory recurrent synaptic weight")
+                doc="Excitatory-to-excitatory recurrent coupling (dimensionless)")
 
     J_ei = Attr(default=5.0, attributes=Model.Tag.REGIONAL,
-                doc="Inhibitory-to-excitatory synaptic weight (subtracted in dV_e)")
+                doc="Inhibitory-to-excitatory coupling weight (subtracted in drive)")
 
     beta_e = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
-                  doc="Excitatory QSFA adaptation strength β_e")
+                  doc="QSFA adaptation strength for excitatory neurons beta_e")
 
-    # --- Inhibitory population parameters ---
-    tau_a_i = Attr(default=0.10, attributes=Model.Tag.REGIONAL,
-                   doc="Inhibitory adaptation time constant [s] (default: 100 ms)")
-
+    # Inhibitory population
     Delta_i = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
-                   doc="Lorentzian half-width of inhibitory η distribution (heterogeneity)")
+                   doc="Lorentzian half-width of inhibitory eta distribution (Delta_i)")
 
     eta_i = Attr(default=-1.74, attributes=Model.Tag.REGIONAL,
-                 doc="Mean inhibitory external drive η̄_i")
+                 doc="Mean inhibitory external drive eta_i")
 
-    J_ie = Attr(default=10.0, attributes=Model.Tag.REGIONAL,
-                doc="Excitatory-to-inhibitory synaptic weight")
+    J_ie = Attr(default=5.0, attributes=Model.Tag.REGIONAL,
+                doc="Excitatory-to-inhibitory coupling weight")
 
-    J_ii = Attr(default=2.0, attributes=Model.Tag.REGIONAL,
-                doc="Inhibitory self-coupling weight (subtracted in dV_i)")
+    J_ii = Attr(default=5.0, attributes=Model.Tag.REGIONAL,
+                doc="Inhibitory self-coupling weight (subtracted in drive)")
 
     beta_i = Attr(default=1.0, attributes=Model.Tag.REGIONAL,
-                  doc="Inhibitory QSFA adaptation strength β_i")
+                  doc="QSFA adaptation strength for inhibitory neurons beta_i")
 
     # ------------------------------------------------------------------
-    # Initial-state helper
+    # Initial conditions (Erratum prescription: r0=0.10, v0=-0.20, a0=b0=0)
     # ------------------------------------------------------------------
 
     @overrides
     def initial_state(self, n_rois: int) -> np.ndarray:
-        """
-        Return initial state consistent with the Erratum prescription:
-            R(0) = r0,  V(0) = v0,  A(0) = 0,  B(0) = 0
-        for both populations.
-        """
         state = np.zeros((Pietras2025.n_state_vars, n_rois))
-        # Excitatory
-        state[0] = 0.10   # R_e  (dimensionless, ~ r0 from Erratum)
-        state[1] = -0.20  # V_e  (~ v0 from Erratum)
-        state[2] = 0.0    # A_e
-        state[3] = 0.0    # B_e
-        # Inhibitory — start from low-activity state
-        state[4] = 0.10   # R_i
-        state[5] = -0.20  # V_i
-        state[6] = 0.0    # A_i
-        state[7] = 0.0    # B_i
+        # Excitatory — Erratum initial conditions
+        state[0] = 0.10   # r_e
+        state[1] = -0.20  # v_e
+        state[2] = 0.0    # a_e
+        state[3] = 0.0    # b_e
+        # Inhibitory — same prescription for the second population
+        state[4] = 0.10   # r_i
+        state[5] = -0.20  # v_i
+        state[6] = 0.0    # a_i
+        state[7] = 0.0    # b_i
         return state
 
     # ------------------------------------------------------------------
@@ -198,37 +185,30 @@ class Pietras2025(LinearCouplingModel):
     @overrides
     def get_numba_dfun(self):
         """
-        Return the Numba-JIT differential function implementing the 4D
-        transient mean-field equations for E and I populations.
+        Return the Numba-JIT function implementing the 4D transient mean-field
+        equations in dimensionless time t' = t / tau_m.
 
-        The equations (from the Erratum, part c, adapted for two populations)
-        are — for the excitatory population:
+        Equations (verified line-by-line against simulate_fre_4d):
 
-            τm dR_e/dt = (Δ_e + B_e) / (π τm) + 2 R_e V_e
-            τm dV_e/dt = V_e² − (π τm R_e)² + η̄_e + J_ee τm R_e
-                         − J_ei τm R_i − A_e + coupling_e
-            τa_e dA_e/dt = −(1+β_e) A_e + β_e [η̄_e + J_ee τm R_e − J_ei τm R_i + coupling_e]
-            τa_e dB_e/dt = −(1+β_e) B_e − β_e Δ_e
+        For excitatory population, with tau_e = tau_a_e / tau_m:
 
-        and symmetrically for the inhibitory population (with J_ie, J_ii,
-        Δ_i, η̄_i, β_i, τa_i), where inhibitory neurons receive only local
-        excitatory drive (no long-range inter-region coupling):
+            dr_e/dt' = (Delta_e + b_e) / pi  +  2 * r_e * v_e
+            dv_e/dt' = v_e^2  -  (pi * r_e)^2  +  I_eff_e  -  a_e
+            da_e/dt' = [ beta_e * I_eff_e  -  (1 + beta_e) * a_e ] / tau_e
+            db_e/dt' = [ -(1 + beta_e) * b_e  -  beta_e * Delta_e ] / tau_e
 
-            τm dR_i/dt = (Δ_i + B_i) / (π τm) + 2 R_i V_i
-            τm dV_i/dt = V_i² − (π τm R_i)² + η̄_i + J_ie τm R_e
-                         − J_ii τm R_i − A_i
-            τa_i dA_i/dt = −(1+β_i) A_i + β_i [η̄_i + J_ie τm R_e − J_ii τm R_i]
-            τa_i dB_i/dt = −(1+β_i) B_i − β_i Δ_i
+            I_eff_e  =  eta_e  +  J_ee * r_e  -  J_ei * r_i  +  c_e
 
-        coupling_e is the long-range excitatory input from other regions,
-        computed by LinearCouplingModel as  g * (W^T @ R_e).
+        Symmetrically for inhibitory (tau_i = tau_a_i / tau_m):
 
-        The coupling is added to the effective drive of V_e and A_e because
-        it enters the QIF model identically to η̄_e (it is part of I_j(t) in
-        equation (6) of the paper: I_j = J τm R(t) + η_j).
+            dr_i/dt' = (Delta_i + b_i) / pi  +  2 * r_i * v_i
+            dv_i/dt' = v_i^2  -  (pi * r_i)^2  +  I_eff_i  -  a_i
+            da_i/dt' = [ beta_i * I_eff_i  -  (1 + beta_i) * a_i ] / tau_i
+            db_i/dt' = [ -(1 + beta_i) * b_i  -  beta_i * Delta_i ] / tau_i
 
-        Parameters of the dfun are read from the pre-built parameter matrix
-        self.m at the row indices given by the P enum.
+            I_eff_i  =  eta_i  +  J_ie * r_e  -  J_ii * r_i
+
+        c_e = coupling[0] = g * (W^T @ r_e)   [long-range excitatory input]
         """
         m = self.m.copy()
         P = self.P
@@ -238,17 +218,15 @@ class Pietras2025(LinearCouplingModel):
                  cache=NUMBA_CACHE, fastmath=NUMBA_FASTMATH, nogil=NUMBA_NOGIL)
         def Pietras2025_dfun(state: NDA_f8_2d, coupling: NDA_f8_2d):
             """
-            Compute state derivatives and observables for the Pietras2025 model.
-
             Parameters
             ----------
-            state    : (8, n_rois)  [R_e, V_e, A_e, B_e, R_i, V_i, A_i, B_i]
-            coupling : (1, n_rois)  long-range excitatory input g * W^T @ R_e
+            state    : (8, n_rois)   [r_e, v_e, a_e, b_e, r_i, v_i, a_i, b_i]
+            coupling : (1, n_rois)   g * W^T @ r_e  (long-range excitatory input)
 
             Returns
             -------
-            d_state  : (8, n_rois)  time derivatives
-            observed : (2, n_rois)  [R_e_Hz, R_i_Hz]
+            d_state  : (8, n_rois)   time derivatives w.r.t. dimensionless time t'
+            observed : (2, n_rois)   [R_e_Hz, R_i_Hz]
             """
             # --- Unpack state ---
             R_e = state[0]   # dimensionless excitatory firing rate
@@ -263,80 +241,64 @@ class Pietras2025(LinearCouplingModel):
             # --- Unpack parameters ---
             tau_m   = m[np.intp(P.tau_m)]
             tau_a_e = m[np.intp(P.tau_a_e)]
+            tau_a_i = m[np.intp(P.tau_a_i)]
+
             Delta_e = m[np.intp(P.Delta_e)]
             eta_e   = m[np.intp(P.eta_e)]
             J_ee    = m[np.intp(P.J_ee)]
             J_ei    = m[np.intp(P.J_ei)]
             beta_e  = m[np.intp(P.beta_e)]
 
-            tau_a_i = m[np.intp(P.tau_a_i)]
             Delta_i = m[np.intp(P.Delta_i)]
             eta_i   = m[np.intp(P.eta_i)]
             J_ie    = m[np.intp(P.J_ie)]
             J_ii    = m[np.intp(P.J_ii)]
             beta_i  = m[np.intp(P.beta_i)]
 
-            # --- Long-range excitatory coupling input ---
-            # coupling[0] = g * (W^T @ R_e), shape (n_rois,)
+            # Dimensionless adaptation time ratios (tau = tau_a / tau_m)
+            # e.g. tau_e = 0.1 / 0.01 = 10.0 for the Fig. 5 parameters
+            tau_e = tau_a_e / tau_m
+            tau_i = tau_a_i / tau_m
+
+            # --- Long-range excitatory input ---
+            # c_e has same units as r_e (dimensionless), enters drive additively
             c_e = coupling[0]
 
             # -------------------------------------------------------
-            # Excitatory population (4D transient FRE, Erratum part c)
+            # Effective drives — replace eta_bar in the single-population eqs.
+            # Exactly mirrors simulate_fre_4d:  ebar + p.J * rr
             # -------------------------------------------------------
-
-            # Effective drive entering both V̇_e and A_e equation
-            #   I_eff_e = η̄_e + J_ee * τm * R_e  - J_ei * τm * R_i  + long-range
-            # Note: τm * R is dimensionless×s → same unit as η̄
-            #I_eff_e = eta_e + J_ee * tau_m * R_e - J_ei * tau_m * R_i + c_e
-            I_eff_e = J_ee * tau_m * R_e - J_ei * tau_m * R_i + J_ee * tau_m * c_e
-        
-
-            # τm dR_e/dt = (Δ_e + B_e) / (π τm) + 2 R_e V_e
-            dR_e = ((Delta_e + B_e) / (pi * tau_m) + 2.0 * R_e * V_e) / tau_m
-
-            # τm dV_e/dt = V_e² − (π τm R_e)² + I_eff_e − A_e
-            dV_e = (V_e * V_e - (pi * tau_m * R_e) ** 2 + I_eff_e - A_e) / tau_m
-
-            # τa_e dA_e/dt = −(1+β_e) A_e + β_e * I_eff_e
-            dA_e = (-(1.0 + beta_e) * A_e + beta_e * I_eff_e) / tau_a_e
-
-            # τa_e dB_e/dt = −(1+β_e) B_e − β_e Δ_e
-            dB_e = (-(1.0 + beta_e) * B_e - beta_e * Delta_e) / tau_a_e
+            I_eff_e = eta_e + J_ee * R_e - J_ei * R_i + c_e
+            I_eff_i = eta_i + J_ie * R_e - J_ii * R_i
 
             # -------------------------------------------------------
-            # Inhibitory population (4D transient FRE, same structure)
+            # Excitatory 4D mean-field
+            # Direct translation of simulate_fre_4d (drr, dvv, daa, dbb)
             # -------------------------------------------------------
+            dr_e = (Delta_e + B_e) / pi + 2.0 * R_e * V_e
+            dv_e = V_e * V_e - (pi * R_e) ** 2.0 + I_eff_e - A_e
+            da_e = (beta_e * I_eff_e - (1.0 + beta_e) * A_e) / tau_e
+            db_e = (-(1.0 + beta_e) * B_e - beta_e * Delta_e) / tau_e
 
-            # Effective drive for inhibitory population
-            #   (no long-range coupling for inhibitory neurons)
-            #I_eff_i = eta_i + J_ie * tau_m * R_e - J_ii * tau_m * R_i
-            I_eff_i = tau_m * J_ie * R_e - J_ii * tau_m * R_i
-
-            # τm dR_i/dt = (Δ_i + B_i) / (π τm) + 2 R_i V_i
-            dR_i = ((Delta_i + B_i) / (pi * tau_m) + 2.0 * R_i * V_i) / tau_m
-
-            # τm dV_i/dt = V_i² − (π τm R_i)² + I_eff_i − A_i
-            dV_i = (V_i * V_i - (pi * tau_m * R_i) ** 2 + I_eff_i - A_i) / tau_m
-
-            # τa_i dA_i/dt = −(1+β_i) A_i + β_i * I_eff_i
-            dA_i = (-(1.0 + beta_i) * A_i + beta_i * I_eff_i) / tau_a_i
-
-            # τa_i dB_i/dt = −(1+β_i) B_i − β_i Δ_i
-            dB_i = (-(1.0 + beta_i) * B_i - beta_i * Delta_i) / tau_a_i
+            # -------------------------------------------------------
+            # Inhibitory 4D mean-field (no long-range coupling)
+            # -------------------------------------------------------
+            dr_i = (Delta_i + B_i) / pi + 2.0 * R_i * V_i
+            dv_i = V_i * V_i - (pi * R_i) ** 2.0 + I_eff_i - A_i
+            da_i = (beta_i * I_eff_i - (1.0 + beta_i) * A_i) / tau_i
+            db_i = (-(1.0 + beta_i) * B_i - beta_i * Delta_i) / tau_i
 
             # -------------------------------------------------------
             # Pack outputs
             # -------------------------------------------------------
+            d_state = np.stack((dr_e, dv_e, da_e, db_e,
+                                dr_i, dv_i, da_i, db_i))
 
-            d_state = np.stack((dR_e, dV_e, dA_e, dB_e,
-                                dR_i, dV_i, dA_i, dB_i))
-
-            # Observable: physical firing rates in Hz = R / τm
-            R_e_Hz = R_e / tau_m
-            R_i_Hz = R_i / tau_m
+            # Physical firing rates in Hz = r / tau_m_s
+            R_e_Hz = R_e / tau_m*1000 # convert to Hz for observables
+            R_i_Hz = R_i / tau_m*1000 # convert to Hz for observables
             observed = np.stack((R_e_Hz, R_i_Hz))
 
             return d_state, observed
 
         return Pietras2025_dfun
-
