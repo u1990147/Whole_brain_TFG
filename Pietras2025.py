@@ -304,4 +304,4 @@ class Pietras2025(LinearCouplingModel):
         return Pietras2025_dfun
 
     def get_noise_template(self):
-        return np.r_[1., 1., 1., 1., 1., 1., 1., 1.]  # ['R_e', 'V_e', 'A_e', 'B_e','R_i', 'V_i', 'A_i', 'B_i']
+        return np.r_[1., 1., 0., 0., 1., 1., 0., 0.]  # ['R_e', 'V_e', 'A_e', 'B_e','R_i', 'V_i', 'A_i', 'B_i']
