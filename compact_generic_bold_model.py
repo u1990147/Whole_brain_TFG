@@ -29,6 +29,7 @@ class Compact_Simulator(CompactBoldSimulatorBase):
     model = Attr(default=None, doc="If need to custom configure the model. It must be a Montbrio model")
     obs_var = Attr(default="r_e", doc="Observation variable")
     use_bold = Attr(default=True, doc="Perform a BOLD simulation, or directly return the activity")
+    sampling_period = Attr(default=1.0, doc="Sampling period from the raw signal data in milliseconds")
 
     def _generate_bold(
         self,
@@ -43,7 +44,7 @@ class Compact_Simulator(CompactBoldSimulatorBase):
         n_roi = np.shape(self.weights)[0]
 
         # Prepare everything
-        integrator = EulerStochastic(dt=self.dt, sigmas=np.r_[self.sigma, 0.0, 0.0, 0.0, 0.0, 0.0])
+        integrator = EulerStochastic(dt=self.dt, sigmas=model.get_noise_template() * self.sigma)
         con = Connectivity(
             weights=self.weights,
             lengths=np.random.rand(n_roi, n_roi)*10.0 + 1.0,
@@ -53,12 +54,12 @@ class Compact_Simulator(CompactBoldSimulatorBase):
         monitor = None
         if self.use_temporal_avg_monitor:
             monitor = TemporalAverage(
-                period=(self.tr / 1000.0),
+                period=self.sampling_period,
                 monitor_vars=model.get_var_info([obs_var])
             )
         else:
             monitor = RawSubSample(
-                period=(self.tr / 1000.0),
+                period=self.sampling_period,
                 monitor_vars=model.get_var_info([obs_var])
             )
         sim = Simulator(

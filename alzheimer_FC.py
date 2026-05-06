@@ -68,8 +68,8 @@ def dataLoader(database='HCP'):
         from HCP_dbs80 import HCP
         return HCP()
     elif database == 'ADNI':
-        from ADNI_A import ADNI_A
-        return ADNI_A()
+        from ADNI_G import ADNI_G
+        return ADNI_G()
 
 def FC_mean(hcp):
     """
@@ -96,7 +96,7 @@ def run():
     # you should use the real one.
     # sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
     # np.fill_diagonal(sc_norm, 0.0)
-    DL = dataLoader(database='HCP')
+    DL = dataLoader(database='ADNI')
     sc_norm = DL.get_AvgSC_ctrl()
     #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
     sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
@@ -116,7 +116,7 @@ def run():
     #fc_mean = FC_mean(hcp)
 
     tr = 2.0
-    dt = 0.1 # milliseconds (1e-4 seconds)
+    dt = 0.01 # milliseconds (1e-4 seconds)
     Tmax_vol = 100
     T_sim_seconds = (Tmax_vol * tr)
     T_warm_seconds = 10
@@ -135,10 +135,10 @@ def run():
         use_bold = True # False for maxRate
     )
 
-    subjs={group:DL.get_groupSubjects(group)[:10]
+    subjs={group:DL.get_groupSubjects(group)[:2]
            for group in DL.get_groupLabels()}
 
-    g_values = np.arange(0, 11, 1)  # 10 values between 0 and 10
+    g_values = np.array([1, 2, 3])  # 10 values between 0 and 10
     fc_corrs = {group: np.full((len(subjs[group]), len(g_values)), np.nan) 
                 for group in subjs}
     optimal_g = {group: np.full(len(subjs[group]), np.nan)
