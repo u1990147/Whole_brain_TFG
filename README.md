@@ -1,6 +1,9 @@
 # Whole-brain development from an exact population-level model
 This repository contains the code developed for my final degree project focused on extending the population model proposed by Pietras, Clusella and Montbrió to a whole-brain level using the Neuronumba library, and apply it to Alzheimer's disease.
 
+**Original Article:** Pietras, B., Clusella, P., & Montbrió, E. (2025). Exact mean-field description of networks of quadratic integrate-and-fire neurons with synaptic dynamics. Physical Review E, 111(1), 014422.
+https://doi.org/10.1103/PhysRevE.111.014422
+
 **Requirements**
 
 The code is written in Python and requires the following packages:
