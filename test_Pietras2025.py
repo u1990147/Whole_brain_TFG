@@ -128,11 +128,7 @@ def run():
 
     hcp = HCP()
     sc_norm = hcp.get_AvgSC_ctrl()
-    #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
     cfg['sc_norm'] = sc_norm / np.max(sc_norm) * 0.2  # Normalize
-    #sc_norm = np.array([[0.0]])
-    # plt.matshow(sc_norm)
-    # plt.show()
 
     cfg['tr'] = 2.0
     cfg['dt'] = 0.01 # milliseconds (1e-5 seconds)

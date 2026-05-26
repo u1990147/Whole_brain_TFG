@@ -2,8 +2,8 @@ import numpy as np
 import os
 import scipy.io as sio
 
-from DataLoaders.ADNI_G import ADNI_G
-import Plotting.p_values_raincloud as plot
+from ADNI_G import ADNI_G
+import p_values_raincloud as plot
 
 
 def load_data(DL):

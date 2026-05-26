@@ -14,7 +14,7 @@ import glob
 import re
 import numpy as np
 import pandas as pd
-import hdf as hdf  # assuming you already use this wrapper for .mat
+from neuronumba.tools import hdf as hdf # assuming you already use this wrapper for .mat
 from baseDataLoader import DataLoader
 
 # ================================================================================================================

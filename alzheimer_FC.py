@@ -15,11 +15,11 @@ from neuronumba.tools.filters import BandPassFilter
 from neuronumba.observables.fc import FC
 import neuronumba.observables.measures as measures
 
-from Utils.decorators import loadOrCompute
+from decorators import loadOrCompute
 
-import pietras2025
-from MiniNeuroNumba.compact_generic_bold_model import Compact_Simulator
-# from MiniNeuroNumba.compact_bold_simulator import CompactMontbrioSimulator
+import Pietras2025
+from compact_generic_bold_model import Compact_Simulator
+# from compact_bold_simulator import CompactMontbrioSimulator
 
 
 def filer_fMRI(fMRI):  # fMRI in (time, RoIs) format
@@ -71,31 +71,11 @@ def dataLoader(database='HCP'):
     """
     
     if database == 'HCP':
-        from DataLoaders.HCP_dbs80 import HCP
+        from HCP_dbs80 import HCP
         return HCP()
     elif database == 'ADNI':
-        from DataLoaders.ADNI_G import ADNI_G
+        from ADNI_G import ADNI_G
         return ADNI_G()
-
-
-def FC_mean(hcp):
-    """
-    For each subject observable FC is calculated, aplying first a band-pass filter to the BOLD signal. 
-    Then the results are averaged into a single FC matrix. Then we changed the value of G and calculate the BOLD
-    and choose the one that best fits the averaged FC. 
-    """
-    gCtrl = hcp.get_groupSubjects('REST1')[:50]
-    FC_all = []
-    for subj_id in gCtrl:
-        subj_data = hcp.get_subjectData(subj_id)[subj_id]
-        ts = subj_data['timeseries']
-        measure = FC()
-        bold_fit = filer_fMRI(ts.T) # input bold in (time, RoIs) format
-        fc = measure._compute_from_fmri(bold_fit)
-        FC_all.append(fc['FC'])
-    FC_all = np.array(FC_all)  # shape: (N_subjectes, 80, 80)
-    return np.mean(FC_all, axis=0)
-
 
 @loadOrCompute
 def run_subject_sim(cfg):
@@ -104,7 +84,7 @@ def run_subject_sim(cfg):
     g_values = cfg['g_values']
 
     compact_simulator = Compact_Simulator(
-        model = pietras2025.Pietras2025(),
+        model = Pietras2025.Pietras2025(),
         obs_var = 'R_e_Hz',
         weights = cfg['sc_norm'],
         use_temporal_avg_monitor = False,
@@ -158,16 +138,10 @@ def run():
     cfg = {}
     #args = parse_arguments()
 
-    # We generate a Mock-up structural connectivity (SC) matrix for the purpose of the example. In a real-world scenario
-    # you should use the real one.
-    # sc_norm = np.random.uniform(0.05, 0.2, size=(n_rois, n_rois))
-    # np.fill_diagonal(sc_norm, 0.0)
     DL = dataLoader(database='ADNI')
     cfg['DL'] = DL
     sc_norm = DL.get_AvgSC_ctrl()
     cfg['sc_norm'] = sc_norm / np.max(sc_norm) * 0.2  # Normalize
-    # plt.matshow(sc_norm)
-    # plt.show()
 
     cfg['tr'] = 2.0
     cfg['dt'] = 0.01 # milliseconds (1e-4 seconds)
@@ -184,17 +158,6 @@ def run():
     # g_values = np.array([1., 2.])  # 10 values between 0 and 10
     g_values = np.arange(0., 2.7, 0.1)
     cfg['g_values'] = g_values
-
-    # optimal_g = {group: np.full(len(subjs[group]), np.nan)
-    #             for group in subjs}
-    # # For each subject of the dataset we calculate the FC
-    # for group in subjs:
-    #     cfg['group'] = group
-    #     for subj_indx, subj_id in enumerate(subjs[group]):
-    #         cfg['subj_id'] = subj_id
-    #         # Find optimal G for this subject
-    #         fc_subj_corr = run_subject(subj_id, cfg)
-    #         optimal_g[group][subj_indx] = fc_subj_corr[0]
 
     pool = ProcessPool(nodes=20)
     cfgs = []

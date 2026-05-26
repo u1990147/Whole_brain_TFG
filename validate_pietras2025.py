@@ -5,7 +5,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from Pietras_retallat import simulate_fre_4d, Params, piecewise_eta_bar
-import pietras2025_2
+import Pietras2025
 
 # My model
 # Parameters
@@ -16,11 +16,11 @@ dtp = dt_ms / tau_m_ms
 # We use a 1x1 SC matrix of zeros and g=0 so coupling is always zero.
 # This reproduces the single-population case of the paper exactly.
 sc_norm = np.array([[0.0]])
-model_low = pietras2025_2.Pietras2025(eta_e=-1.74)
+model_low = Pietras2025.Pietras2025(eta_e=-1.74)
 model_low.configure(weights=sc_norm, g=0.0)
 dfun_low = model_low.get_numba_dfun()
 
-model_mid = pietras2025_2.Pietras2025(eta_e=0.0)
+model_mid = Pietras2025.Pietras2025(eta_e=0.0)
 model_mid.configure(weights=sc_norm, g=0.0)
 dfun_mid = model_mid.get_numba_dfun()
 
