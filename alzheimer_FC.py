@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import scipy.io as sio
 from scipy.signal import detrend
@@ -18,7 +19,7 @@ from Utils.decorators import loadOrCompute
 
 import pietras2025
 from MiniNeuroNumba.compact_generic_bold_model import Compact_Simulator
-from MiniNeuroNumba.compact_bold_simulator import CompactMontbrioSimulator
+# from MiniNeuroNumba.compact_bold_simulator import CompactMontbrioSimulator
 
 
 def filer_fMRI(fMRI):  # fMRI in (time, RoIs) format
@@ -123,7 +124,7 @@ def run_subject_sim(cfg):
     fc_corrs = np.full(len(g_values), np.nan)
 
     for g_indx, g in enumerate(g_values):  # For each value of G we calculate the FC and compare it with the subject FC, to find the optimal G for each subject
-        print(f'  Fitting subject {subj_id} @ {g}')
+        print(f'  Fitting subject {subj_id} ({cfg['group']}) @ {g}')
         compact_simulator.g = g
         fcs_sim = []
         for _ in range(cfg['sim_repes']):  # Run multiple trials for each G and average results
@@ -173,8 +174,9 @@ def run():
     cfg['Tmax_vol'] = 100
     cfg['T_sim_seconds'] = (cfg['Tmax_vol'] * cfg['tr'])
     cfg['T_warm_seconds'] = 10
-    cfg['sim_repes'] = 2
+    cfg['sim_repes'] = 5
 
+    groups = DL.get_groupLabels()
     num_AD_subjects = len(DL.get_groupSubjects('AD'))
     subjs={group:DL.get_groupSubjects(group)[:num_AD_subjects]
            for group in DL.get_groupLabels()}
@@ -194,15 +196,17 @@ def run():
     #         fc_subj_corr = run_subject(subj_id, cfg)
     #         optimal_g[group][subj_indx] = fc_subj_corr[0]
 
-    for group in subjs:
-        cfg['group'] = group
-        pool = ProcessPool(nodes=20)
-        cfgs = []
+    pool = ProcessPool(nodes=20)
+    cfgs = []
+    for group in groups:
         for subj_id in subjs[group]:
-            conf = cfg.copy()
-            conf['subj_id'] = subj_id
-            cfgs.append(conf)
-        results = pool.map(run_subject, cfgs)
+            file_name = f'./_Data_Produced/{subj_id}_{group}.mat'
+            if not os.path.exists(file_name):
+                conf = cfg.copy()
+                conf['group'] = group
+                conf['subj_id'] = subj_id
+                cfgs.append(conf)
+    results = pool.map(run_subject, cfgs)
 
     print('all done!')
 
