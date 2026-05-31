@@ -4,6 +4,9 @@
 #
 # By Albert Juncà
 # adapted by Gustavo Patow
+#
+# Modified and extended by Lola Martínez Pedraza for the Final Degree Project:
+# "Whole-brain development from an exact population-level model"
 # =======================================================================
 import argparse
 import math
@@ -102,6 +105,8 @@ def run_BOLD(cfg, plot=True):
     if plot:
         fig, axs = plt.subplots(1)
         fig.suptitle(f'Result for model Pietras2025 (g={cfg['g']})')
+        axs.set_ylabel('Bold signal [a.u.]')
+        axs.set_xlabel('Time [s]')
         axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
         plt.show()
 
@@ -137,20 +142,15 @@ def run():
     cfg['T_warm_seconds'] = 20
     cfg['sigma'] = 1e-03
 
-    # =============== compute the rates for two different
-    cfg['g'] = 3.0
-    rates = run_BOLD(cfg, plot=False)
-    np.save(f'_Data_Produced/rates_{cfg['g']}.npy', rates)
-
-    cfg['g'] = 4.0
+    cfg['g'] = 1.0
     rates = run_BOLD(cfg, plot=False)
     np.save(f'_Data_Produced/rates_{cfg['g']}.npy', rates)
 
     # =============== compute the max firing rate vs g plot
-    cfg['g_min'] = 3.25
-    cfg['g_max'] = 3.4
-    cfg['g_steps'] = 20
-    run_max_firing_rate(cfg)
+    # cfg['g_min'] = 3.25
+    # cfg['g_max'] = 3.4
+    # cfg['g_steps'] = 20
+    # run_max_firing_rate(cfg)
 
 
 if __name__ == '__main__':

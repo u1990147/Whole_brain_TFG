@@ -1,0 +1,16 @@
+import scipy.io
+import matplotlib.pyplot as plt
+from WorkBrainFolder import *
+import numpy as np
+
+base_folder = WorkBrainDataFolder + "HCP/DataHCP80/"
+data= scipy.io.loadmat(base_folder + 'SC_dbs80HARDIFULL.mat')
+print(data.keys())
+plt.imshow(data['SC_dbs80FULL'])
+plt.colorbar()
+plt.show()
+
+sc_norm = data['SC_dbs80FULL'] / np.max(data['SC_dbs80FULL']) * 0.2  # Normalize
+plt.imshow(sc_norm)
+plt.colorbar()
+plt.show()

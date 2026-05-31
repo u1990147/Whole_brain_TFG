@@ -4,6 +4,9 @@
 #
 # By Albert Juncà
 # adapted by Gustavo Patow
+#
+# Modified and extended by Lola Martínez Pedraza for the Final Degree Project:
+# "Whole-brain development from an exact population-level model"
 # =======================================================================
 import argparse
 import math
@@ -71,18 +74,6 @@ def run():
     #sc_norm = sio.loadmat('./_Data_Raw/CNT_S01_structure.mat')['CNT_S01_structure']
     sc_norm = sc_norm / np.max(sc_norm) * 0.2  # Normalize
     #sc_norm = np.array([[0.0]])
-    # plt.matshow(sc_norm)
-    # plt.show()
-
-    # ts = sio.loadmat('./_Data_Raw/CNT.mat')['ts_emp_raw']
-    # # Reorder AAL to Deco
-    # left_idx = list(range(0, 90, 2))
-    # right_idx = list(range(89,0,-2))
-    # order_deco = left_idx + right_idx
-    # ts_emp = ts[order_deco,:]
-    # ts_emp = detrend(ts_emp)
-    # ts_emp_filt = filer_fMRI(ts_emp.T).T
-    # FC_emp = np.corrcoef(ts_emp_filt)
 
     tr = 2.0
     dt = 0.01 # milliseconds (1e-5 seconds)
@@ -103,7 +94,7 @@ def run():
         use_bold = True # False for maxRate
     )
 
-    g_values = np.arange(2, 10, 2) # 2, 4, 6 and 8
+    g_values = np.arange(2, 6, 2)  #2, 4, 6 and 8
     for g in g_values:
         compact_simulator.g = g
         simulated_bold = compact_simulator.generate_bold(
@@ -113,7 +104,8 @@ def run():
         # Show each simulation separately
         fig, axs = plt.subplots(1)
         fig.suptitle(f'Result for model Pietras2025 (g={compact_simulator.g})')
-        axs.set_ylabel('time[s]')
+        axs.set_ylabel('Bold signal [a.u.]')
+        axs.set_xlabel('Time [s]')
         axs.plot(np.arange(simulated_bold.shape[0]), simulated_bold)
         plt.show()
 
